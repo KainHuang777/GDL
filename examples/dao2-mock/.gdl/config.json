@@ -1,0 +1,6 @@
+{
+  "projectId": "dao2-mock",
+  "adapter": "./adapter.ts",
+  "dataRoots": ["./data"],
+  "outputDir": "./.gdl/reports"
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "0.1",
+  "project": { "id": "broken-demo" },
+  "resources": [
+    { "id": "gold", "initial": 0 },
+    { "id": "time_minutes", "initial": 0 },
+    { "id": "gold", "initial": 5 }
+  ],
+  "actions": [
+    {
+      "id": "dig",
+      "durationMinutes": 5,
+      "costs": [{ "resource": "time_minutes", "amount": 5 }],
+      "outcomes": [
+        { "type": "resource", "resource": "gold", "amount": 3, "probability": 1.5 },
+        { "type": "resource", "resource": "gems", "amount": 1 }
+      ]
+    },
+    { "id": "idle", "durationMinutes": -1 }
+  ],
+  "progression": [
+    { "id": "a", "order": 1 },
+    { "id": "b", "order": 2, "requirements": [{ "type": "node", "node": "c" }] },
+    { "id": "c", "order": 3, "requirements": [{ "type": "resource", "resource": "gold", "gte": 10 }] }
+  ]
+}

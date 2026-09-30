@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.1",
+  "project": { "id": "minimal-idle", "name": "Minimal Idle Game", "genre": "idle" },
+  "resources": [
+    { "id": "gold", "name": "Gold", "unit": "coin", "initial": 0 },
+    { "id": "pickaxe", "name": "Pickaxe level", "unit": "level", "initial": 0 }
+  ],
+  "actions": [
+    {
+      "id": "buy_pickaxe",
+      "durationMinutes": 1,
+      "costs": [{ "resource": "gold", "amount": 50 }],
+      "outcomes": [{ "type": "resource", "resource": "pickaxe", "amount": 1 }],
+      "maxUses": 1
+    },
+    {
+      "id": "mine_with_pickaxe",
+      "durationMinutes": 5,
+      "requires": [{ "type": "resource", "resource": "pickaxe", "gte": 1 }],
+      "outcomes": [
+        { "type": "resource", "resource": "gold", "amount": { "min": 8, "max": 12 } },
+        { "type": "resource", "resource": "gold", "amount": 50, "probability": 0.05 }
+      ]
+    },
+    {
+      "id": "mine_by_hand",
+      "durationMinutes": 5,
+      "outcomes": [{ "type": "resource", "resource": "gold", "amount": { "min": 1, "max": 5 } }]
+    }
+  ],
+  "progression": [
+    { "id": "start", "order": 0 },
+    { "id": "rich", "order": 1, "requirements": [{ "type": "resource", "resource": "gold", "gte": 500 }] },
+    { "id": "tycoon", "order": 2, "requirements": [{ "type": "resource", "resource": "gold", "gte": 2000 }] }
+  ],
+  "policies": [
+    { "id": "default", "type": "priority", "description": "Buy the pickaxe as soon as possible, then mine with it.", "actions": ["buy_pickaxe", "mine_with_pickaxe", "mine_by_hand"] },
+    { "id": "hand_only", "type": "priority", "description": "Never buys tools.", "actions": ["mine_by_hand"] }
+  ]
+}

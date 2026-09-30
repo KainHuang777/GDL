@@ -1,0 +1,5 @@
+{
+  "id": "realm-stone-plus-50",
+  "description": "All realm breakthroughs cost 50% more spirit stones",
+  "changes": [{ "target": "progression[*].costs[resource=spirit_stone].amount", "op": "multiply", "value": 1.5 }]
+}

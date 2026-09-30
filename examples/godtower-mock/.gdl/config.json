@@ -1,0 +1,6 @@
+{
+  "projectId": "godtower-mock",
+  "adapter": "./adapter.ts",
+  "dataRoots": ["./data"],
+  "adapterOptions": { "farmGoldRatio": 0.4 }
+}

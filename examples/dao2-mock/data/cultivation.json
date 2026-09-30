@@ -1,0 +1,11 @@
+{
+  "_comment": "MOCK DATA - not the real Dao2 project. Shape invented to exercise the adapter; replace once the real Dao2 data layout is confirmed.",
+  "player": { "stamina": { "start": 60, "cap": 120, "regenPerHour": 12 } },
+  "realms": [
+    { "key": "mortal", "title": "Mortal", "tier": 0, "expNeeded": 0, "stoneCost": 0 },
+    { "key": "qi_refining", "title": "Qi Refining", "tier": 1, "expNeeded": 300, "stoneCost": 20 },
+    { "key": "foundation", "title": "Foundation Establishment", "tier": 2, "expNeeded": 1500, "stoneCost": 120 },
+    { "key": "core_formation", "title": "Core Formation", "tier": 3, "expNeeded": 6000, "stoneCost": 600 },
+    { "key": "nascent_soul", "title": "Nascent Soul", "tier": 4, "expNeeded": 20000, "stoneCost": 2500 }
+  ]
+}

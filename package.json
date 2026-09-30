@@ -1,0 +1,26 @@
+{
+  "name": "game-design-lab",
+  "version": "0.1.0",
+  "description": "GDL - local-first game design SDK: standard game model, validation and reproducible progression simulation.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "gdl": "./bin/gdl.mjs"
+  },
+  "scripts": {
+    "gdl": "tsx src/cli/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/validate.test.ts tests/simulate.test.ts tests/project.test.ts tests/insights.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "~5.9.3"
+  }
+}

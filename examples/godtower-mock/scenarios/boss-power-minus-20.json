@@ -1,0 +1,8 @@
+{
+  "id": "boss-power-minus-20",
+  "description": "Boss waves require 20% less tower power",
+  "changes": [
+    { "target": "actions[clear_wave_5].requires[resource=power].gte", "op": "multiply", "value": 0.8 },
+    { "target": "actions[clear_wave_10].requires[resource=power].gte", "op": "multiply", "value": 0.8 }
+  ]
+}

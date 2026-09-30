@@ -1,0 +1,30 @@
+{
+  "_comment": "MOCK DATA - not the real Dao2 project.",
+  "meditation": { "minutes": 10, "expPerSession": 12, "expBonusPerTier": 0.5 },
+  "monsters": [
+    {
+      "key": "wolf", "minTier": 0, "minutes": 8, "stamina": 6, "exp": 15,
+      "drops": [
+        { "chance": 1.0, "item": "spirit_stone", "qty": [1, 3] },
+        { "chance": 0.08, "item": "qi_pill", "qty": [1, 1] }
+      ]
+    },
+    {
+      "key": "demon_boar", "minTier": 1, "minutes": 12, "stamina": 10, "exp": 45,
+      "drops": [
+        { "chance": 1.0, "item": "spirit_stone", "qty": [3, 7] },
+        { "chance": 0.15, "item": "qi_pill", "qty": [1, 2] }
+      ]
+    },
+    {
+      "key": "ghost_general", "minTier": 3, "minutes": 20, "stamina": 18, "exp": 160,
+      "drops": [
+        { "chance": 1.0, "item": "spirit_stone", "qty": [15, 30] },
+        { "chance": 0.3, "item": "qi_pill", "qty": [1, 3] }
+      ]
+    }
+  ],
+  "items": {
+    "qi_pill": { "useMinutes": 2, "exp": 120 }
+  }
+}

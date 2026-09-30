@@ -1,0 +1,5 @@
+{
+  "id": "pickaxe-cheaper",
+  "description": "Pickaxe costs 30 instead of 50",
+  "changes": [{ "target": "actions[buy_pickaxe].costs[resource=gold].amount", "op": "set", "value": 30 }]
+}
