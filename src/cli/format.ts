@@ -2,12 +2,12 @@ import type { AnalyzeReport, AnyReport, CompareReport, Delta, ReportBase } from 
 import type { SimulationResult } from "../core/runner.js";
 import type { Summary } from "../core/stats.js";
 import type { ValidationIssue } from "../schema/validate.js";
-import type { Insights } from "../insights/insights.js";
+import type { Insights, InsightLang } from "../insights/insights.js";
 import { fmtMin, num, pct } from "../report/units.js";
 
 export { fmtMin };
 
-export function formatText(r: AnyReport, insights?: Insights): string {
+export function formatText(r: AnyReport, insights?: Insights, lang: InsightLang = "en"): string {
   const out: string[] = [];
   header(r, out);
   validation(r, out);
@@ -15,16 +15,18 @@ export function formatText(r: AnyReport, insights?: Insights): string {
   if (r.kind === "simulate" && r.simulation) simulation(r.simulation, out, "Simulation");
   if (r.kind === "compare") compare(r, out);
   unsupported(r, out);
-  if (insights) findingsSummary(insights, out);
+  if (insights) findingsSummary(insights, lang, out);
   return out.join("\n") + "\n";
 }
 
 /** Short findings block appended to text reports: critical + warning only. */
-function findingsSummary(ins: Insights, out: string[]) {
+function findingsSummary(ins: Insights, lang: InsightLang, out: string[]) {
   const important = ins.findings.filter((f) => f.severity !== "info");
   const infos = ins.findings.length - important.length;
   if (!ins.findings.length) return;
-  out.push(`Findings: ${important.length} important, ${infos} info  (full list: gdl inspect <report.json>)`);
+  out.push(lang === "zh-TW"
+    ? `發現：${important.length} 個重要，${infos} 個資訊（完整清單：gdl inspect <report.json>）`
+    : `Findings: ${important.length} important, ${infos} info  (full list: gdl inspect <report.json>)`);
   for (const f of important) out.push(`  ${f.severity === "critical" ? "CRIT" : "WARN"} [${f.category}] ${f.title}`);
   out.push("");
 }
@@ -69,7 +71,8 @@ function analyze(r: AnalyzeReport, out: string[]) {
 function simulation(s: SimulationResult, out: string[], title: string) {
   const mc = s.mode === "monte-carlo";
   out.push(`${title}`);
-  out.push(`  policy ${s.policy.id}${s.policy.implicit ? " (implicit: declaration order)" : ""}: ${s.policy.actions.join(" > ")}`);
+  out.push(`  policy ${s.policy.id}${s.policy.implicit ? " (implicit: declaration order)" : ""}: ${s.policy.actions.join(s.policy.type === "adaptive" ? ", " : " > ")}`);
+  if (s.policy.adaptive) out.push(`    adaptive: objective ${s.policy.adaptive.objective}, temperature ${s.policy.adaptive.temperature}, lookahead ${s.policy.adaptive.lookaheadMinutes} min`);
   out.push(`  limits ${fmtMin(s.limits.maxMinutes)} / ${s.limits.maxActions} actions   mode ${s.mode}${mc ? `   runs ${s.runs}   seed ${s.seed}` : ""}`);
   out.push(`  stop   ${Object.entries(s.stopReasons).map(([k, v]) => `${k} ${mc ? pct(v! / s.runs) : ""}`.trim()).join(", ")}`);
   out.push(`  played ${mc ? sumStr(s.minutes, fmtMin) : fmtMin(s.minutes.median)}   waiting ${mc ? sumStr(s.minutesWaiting, fmtMin) : fmtMin(s.minutesWaiting.median)}`);

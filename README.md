@@ -35,6 +35,8 @@ npm run gdl -- report report.json --out dashboard.html
 # 或一次完成：模擬同時輸出 dashboard；--save 存到 outputDir（預設 .gdl/reports/）
 npm run gdl -- compare --project examples/dao2-mock \
   --scenario examples/dao2-mock/scenarios/realm-stone-plus-50.json --html dao2.html --save
+# dashboard 語言：--lang zh-TW 產生繁體中文版（預設 en）
+npm run gdl -- report report.json --lang zh-TW --out dashboard-zh.html
 ```
 
 設計說明見 [docs/dashboard-design.md](docs/dashboard-design.md)。
@@ -53,7 +55,7 @@ npm run gdl -- compare --project examples/dao2-mock \
 | `report` | 由已存 JSON 報告產生單檔 HTML dashboard | `<report>.html` |
 
 常用選項：`--project <dir|file>`、`--policy <id>`、`--minutes N` / `--hours N`（預設 1440 分鐘）、
-`--max-actions N`、`--no-stop-on-complete`、`--keep-runs`、`--trace`、`--format text|json`、`--out <file>`、`--html <file>`、`--save`、`--focus bottleneck,economy,scenario,data`。
+`--max-actions N`、`--no-stop-on-complete`、`--keep-runs`、`--trace`、`--format text|json`、`--out <file>`、`--html <file>`、`--save`、`--lang en|zh-TW`、`--focus bottleneck,economy,scenario,data`。
 
 ### 結束碼
 
@@ -89,7 +91,7 @@ tests/
 ## 目前限制
 
 - Dao2 / GodTower 實際 repo **未在工作區中**，兩個 adapter 均以自擬 mock 資料驗證架構（待確認）。
-- 單一線性進度軌；策略僅支援 `priority`；無離線收益、無戰鬥逐幀模擬。
+- 單一線性進度軌；策略支援 `priority` 與 `adaptive`（狀態打分 + 前瞻，見 docs/schema.md）；無離線收益、無戰鬥逐幀模擬。
 - Adapter 可在模型的 `unsupported[]` 聲明未建模玩法，所有報告都會列出。
 
 文件：[Schema](docs/schema.md) · [Adapter 撰寫指南](docs/adapter-authoring.md) · [設計審查](docs/design-review.md)

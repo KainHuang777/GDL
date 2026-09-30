@@ -1,0 +1,6 @@
+{
+  "projectId": "dao",
+  "adapter": "./adapter.ts",
+  "dataRoots": ["./data"],
+  "outputDir": "./.gdl/reports"
+}

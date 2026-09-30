@@ -29,6 +29,23 @@ export function resolvePolicy(model: GameModel, id?: string): { policy: Policy; 
   };
 }
 
+export const ADAPTIVE_DEFAULTS = { objective: "progress-rate", temperature: 0, lookaheadMinutes: 120 } as const;
+
+/** Action ids the policy may play, in tie-break / priority order. */
+export function policyPool(model: GameModel, policy: Policy): string[] {
+  return policy.actions ?? model.actions.map((a) => a.id);
+}
+
+/** Parameters of an adaptive policy with defaults applied; null for other policy types. */
+export function adaptiveParams(policy: Policy): { objective: "progress-rate"; temperature: number; lookaheadMinutes: number } | null {
+  if (policy.type !== "adaptive") return null;
+  return {
+    objective: policy.objective ?? ADAPTIVE_DEFAULTS.objective,
+    temperature: policy.temperature ?? ADAPTIVE_DEFAULTS.temperature,
+    lookaheadMinutes: policy.lookaheadMinutes ?? ADAPTIVE_DEFAULTS.lookaheadMinutes,
+  };
+}
+
 /** Error caused by bad CLI/user input (exit code 2), as opposed to data validation (exit code 1). */
 export class UsageError extends Error {
   constructor(message: string) {

@@ -130,6 +130,7 @@ export default defineAdapter({
           description: "Pushes and farms but never upgrades; shows where progression stalls.",
           actions: [...clear, ...farm].map((a) => a.id),
         },
+        { id: "smart", type: "adaptive", description: "Chooses between pushing, upgrading and farming by progress rate (2h look-ahead).", lookaheadMinutes: 120 },
       ],
       unsupported: [
         { feature: "wave combat", reason: "Per-frame tower-defense combat is abstracted as a power threshold (power >= power_required)." },

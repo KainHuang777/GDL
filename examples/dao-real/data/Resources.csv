@@ -1,0 +1,63 @@
+﻿id,name,type,max,rate,unlocked,prereqSkill,prereqEra,recipe
+lingli,靈力,basic,100,0,TRUE,,,
+money,金錢,basic,200,0,TRUE,,,
+wood,靈木,basic,100,0,TRUE,,,
+skill_point,技能點,basic,200,0,FALSE,,2,
+spirit_grass_low,低階靈草,basic,50,0,TRUE,,,
+spirit_rice,靈米,basic,200,0,TRUE,,,
+stone_low,下品靈石,basic,100,0,TRUE,,,
+black_copper,玄銅,basic,300,0,TRUE,,,
+refined_iron,精鐵,basic,300,0,TRUE,,,
+beast_hide_low,初級妖獸皮毛,basic,100,0,TRUE,,,
+beast_bone_low,初級獸骨,basic,100,0,TRUE,,,
+beast_crystal_low,初級獸晶,basic,80,0,FALSE,,3,
+bronze_essence,銅精,crafted,100,0,FALSE,,2,"{""black_copper"":10,""stone_low"":5}"
+foundation_pill,💊 築基丹,crafted,200,0,FALSE,,1,"{""spirit_grass_low"":3,""lingli"":50}"
+spirit_nurt_pill,🧪 蘊靈丹,crafted,200,0,FALSE,nascent_soul_incubation,4,"{""stone_mid"":50,""spirit_grass_100y"":30,""lingli"":1000}"
+longevity_pill,🌸 延壽丹,crafted,10,0,FALSE,heavenly_craft,4,"{""spirit_grass_100y"":5,""stone_mid"":3,""liquid"":200,""mithril"":1}"
+grand_longevity_pill,🌺 極品延壽丹,crafted,6,0,FALSE,,6,"{""spirit_grass_1000y"":3,""stone_high"":5,""liquid"":500,""void_essence"":2}"
+monster_core_low,🧿 初級妖丹,crafted,150,0,FALSE,,2,"{""beast_crystal_low"":2,""spirit_grass_low"":2}"
+spirit_grass_100y,百年靈草,advance,100,0.02,FALSE,golden_core_formation,3,
+beast_taming_note,馴獸筆記,advance,20,0,FALSE,,3,
+spirit_grass_1000y,千年靈草,advance,50,0,FALSE,,5,
+stone_mid,💎 中品靈石,crafted,1000,0,FALSE,,3,"{""stone_low"":5,""lingli"":10}"
+mithril,秘銀,advance,80,0.01,FALSE,,4,
+cold_iron,寒鐵,advance,80,0.01,FALSE,,4,
+spirit_jade,靈玉,advance,50,0,FALSE,,5,
+beast_hide_mid,中級獸皮毛,advance,60,0.01,FALSE,,4,
+beast_bone_mid,中級獸骨,advance,60,0.01,FALSE,,4,
+beast_crystal_mid,中級獸晶,crafted,40,0,FALSE,,5,"{""beast_crystal_low"":20}"
+golden_core_pill,🔮 金丹,crafted,100,0,FALSE,,3,"{""foundation_pill"":3,""spirit_grass_100y"":2,""stone_mid"":5}"
+trans_pill,🌈 化神丹,crafted,80,0,FALSE,,5,"{""golden_core_pill"":2,""spirit_grass_1000y"":1,""mithril"":2}"
+monster_core_mid,🧿 中級妖丹,crafted,80,0,FALSE,,5,"{""beast_crystal_mid"":2,""spirit_grass_100y"":3}"
+spirit_herb_10000y,萬年靈藥,advance,20,0,FALSE,,7,
+star_fungus,星辰靈芝,advance,15,0,FALSE,,8,
+stone_high,💎 上品靈石,crafted,500,0,FALSE,,5,"{""stone_mid"":3,""lingli"":50}"
+star_metal,星隕鐵,advance,30,0.001,FALSE,,7,
+void_crystal,💠 虛空晶,crafted,40,0,FALSE,,7,"{""spirit_jade"":5,""star_metal"":2,""lingli"":500}"
+void_essence,虛空精華,advance,100,0.01,FALSE,,6,
+spirit_thread,靈蘊絲,advance,100,0.01,FALSE,,6,
+void_pill,虛空丹,crafted,100,0,FALSE,,6,"{""void_essence"":5,""spirit_grass_1000y"":2,""lingli"":2000}"
+heaven_jade,天心玉,crafted,100,0,FALSE,,7,"{""spirit_jade"":10,""star_metal"":5,""lingli"":5000}"
+integration_pill,合體丹,crafted,100,0,FALSE,,7,"{""void_pill"":2,""spirit_herb_10000y"":1,""void_crystal"":1}"
+beast_hide_high,高級獸皮毛,crafted,40,0,FALSE,,7,"{""beast_hide_mid"":5,""lingli"":100}"
+beast_bone_high,高級獸骨,crafted,40,0,FALSE,,7,"{""beast_bone_mid"":5,""lingli"":100}"
+beast_crystal_high,高級獸晶,crafted,30,0,FALSE,,8,"{""beast_crystal_mid"":3,""lingli"":200}"
+tribulation_pill,⚡ 渡劫丹,crafted,50,0,FALSE,,8,"{""trans_pill"":3,""spirit_herb_10000y"":1,""stone_high"":10}"
+breakthrough_pill,💥 破境丹,crafted,40,0,FALSE,,9,"{""tribulation_pill"":2,""void_crystal"":1,""star_fungus"":1}"
+monster_core_high,🧿 高級妖丹,crafted,40,0,FALSE,,8,"{""beast_crystal_high"":2,""spirit_herb_10000y"":2}"
+immortal_herb,仙草,advance,10,0,FALSE,,10,
+chaos_lotus,混沌聖蓮,advance,5,0,FALSE,,12,
+immortal_crystal,🎇 仙晶,crafted,30,0,FALSE,,10,"{""stone_high"":10,""void_crystal"":3,""lingli"":5000}"
+divine_gold,🏆 神金,crafted,25,0,FALSE,,10,"{""star_metal"":10,""mithril"":20,""cold_iron"":20}"
+chaos_stone,混沌原石,advance,5,0,FALSE,,12,
+immortal_bone,🦴 仙獸骨,crafted,20,0,FALSE,,10,"{""beast_bone_high"":10,""lingli"":2000}"
+dragon_scale,龍鱗,advance,8,0,FALSE,,11,
+phoenix_feather,鳳羽,advance,8,0,FALSE,,11,
+immortal_pill,☀️ 仙丹,crafted,20,0,FALSE,,10,"{""breakthrough_pill"":5,""immortal_herb"":2,""immortal_crystal"":3}"
+nine_turn_pill,🔄 九轉金丹,crafted,15,0,FALSE,,11,"{""immortal_pill"":3,""divine_gold"":1,""dragon_scale"":1}"
+dao_saint_pill,☯️ 大道聖丹,crafted,10,0,FALSE,,12,"{""nine_turn_pill"":3,""chaos_lotus"":1,""chaos_stone"":1,""phoenix_feather"":1}"
+liquid,🍯 丹液,crafted,1000,0,FALSE,,2,"{""spirit_grass_low"":5,""lingli"":50}"
+talisman,🏷️ 符咒,crafted,500,0,FALSE,,3,"{""wood"":10,""stone_low"":5,""lingli"":50}"
+spirit_wood_high,高級靈木,advance,100,0,FALSE,,5,
+

@@ -12,7 +12,7 @@ import { GDL_VERSION } from "../version.js";
 import { formatText } from "./format.js";
 import { buildInsights, CATEGORIES, type Category } from "../insights/insights.js";
 import { formatInsights } from "../insights/format.js";
-import { renderHtml } from "../report/html.js";
+import { renderHtml, type HtmlLang } from "../report/html.js";
 import { readReport, reportStem, resolveOutputDir, writeFileEnsured } from "../report/io.js";
 
 export const EXIT = { OK: 0, DATA_INVALID: 1, ERROR: 2 } as const;
@@ -24,7 +24,7 @@ Usage:
   gdl analyze  <project|model.json> [sim options]
   gdl simulate <project|model.json> [sim options] [--mode monte-carlo|expected] [--runs N] [--seed S]
   gdl compare  <project|model.json> --scenario <file.json> [--scenario ...] [sim options]
-  gdl inspect  <report.json> [--focus bottleneck,economy,scenario] [--format text|json]
+  gdl inspect  <report.json> [--focus bottleneck,economy,policy,scenario] [--format text|json]
   gdl report   <report.json> [--out dashboard.html]
 
 <project> is a directory containing .gdl/config.json; alternatively pass a Game Model JSON file.
@@ -50,10 +50,11 @@ Output:
                        (gdl report: the HTML output path; default <report>.html)
   --html <file>        also write a static HTML dashboard to <file>
   --save               save JSON + HTML dashboard to the project outputDir (default <project>/.gdl/reports)
+  --lang <en|zh-TW>    dashboard language (default en)
 
 Reading reports:
   inspect              findings (bottlenecks, economy, scenarios) + pacing/economy tables in the terminal
-  --focus <list>       comma-separated categories: bottleneck,economy,scenario,data
+  --focus <list>       comma-separated categories: bottleneck,economy,policy,scenario,data
   report               render a saved JSON report as a self-contained HTML dashboard
 
 Exit codes: 0 ok, 1 data validation failed, 2 usage/runtime error.
@@ -92,6 +93,7 @@ export async function main(argv: string[]): Promise<number> {
         html: { type: "string" },
         save: { type: "boolean" },
         focus: { type: "string" },
+        lang: { type: "string" },
       },
     });
     if (command === "inspect" || command === "report") return await readCommand(command, positionals, values);
@@ -153,17 +155,18 @@ export async function main(argv: string[]): Promise<number> {
     }
 
     const json = JSON.stringify(report, null, 2);
+    const htmlLang = resolveHtmlLang(values.lang);
     if (values.out) await writeFileEnsured(values.out, json + "\n");
-    const insights = buildInsights(report);
-    if (values.html) await writeFileEnsured(values.html, renderHtml(report, insights));
+    const insights = buildInsights(report, htmlLang);
+    if (values.html) await writeFileEnsured(values.html, renderHtml(report, insights, { lang: htmlLang }));
     if (values.save) {
       const dir = await resolveOutputDir(report.provenance.project.root);
       const stem = path.join(dir, reportStem(report));
       await writeFileEnsured(stem + ".json", json + "\n");
-      await writeFileEnsured(stem + ".html", renderHtml(report, insights));
+      await writeFileEnsured(stem + ".html", renderHtml(report, insights, { lang: htmlLang }));
       process.stderr.write(`gdl: saved ${stem}.json and .html\n`);
     }
-    process.stdout.write(format === "json" ? json + "\n" : formatText(report, insights));
+    process.stdout.write(format === "json" ? json + "\n" : formatText(report, insights, htmlLang));
     const scenarioInvalid = report.kind === "compare" && report.scenarios.some((s) => !s.validation.ok);
     return report.validation.ok && !scenarioInvalid ? EXIT.OK : EXIT.DATA_INVALID;
   } catch (e) {
@@ -174,24 +177,25 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-async function readCommand(command: "inspect" | "report", positionals: string[], values: { format?: string; out?: string; focus?: string; [k: string]: unknown }): Promise<number> {
+async function readCommand(command: "inspect" | "report", positionals: string[], values: { format?: string; out?: string; focus?: string; lang?: string; [k: string]: unknown }): Promise<number> {
   const file = positionals[0];
   if (!file) throw new UsageError(`${command} requires a report file: gdl ${command} <report.json>`);
   if (positionals.length > 1) throw new UsageError(`Unexpected arguments: ${positionals.slice(1).join(" ")}`);
-  const report = await readReport(file);
-  const insights = buildInsights(report);
-  if (command === "report") {
-    const out = values.out ?? file.replace(/\.json$/i, "") + ".html";
-    const abs = await writeFileEnsured(out, renderHtml(report, insights));
-    process.stdout.write(`${abs}\n`);
-    return EXIT.OK;
-  }
+const report = await readReport(file);
+    const lang = resolveHtmlLang(values.lang);
+    const insights = buildInsights(report, lang);
+    if (command === "report") {
+      const out = values.out ?? file.replace(/\.json$/i, "") + ".html";
+      const abs = await writeFileEnsured(out, renderHtml(report, insights, { lang }));
+      process.stdout.write(`${abs}\n`);
+      return EXIT.OK;
+    }
   const format = values.format ?? "text";
   if (format !== "text" && format !== "json") throw new UsageError(`--format must be text or json.`);
   const focus = (values.focus ?? "").split(",").map((s) => s.trim()).filter(Boolean) as Category[];
   const bad = focus.filter((f) => !CATEGORIES.includes(f));
   if (bad.length) throw new UsageError(`--focus: unknown category ${bad.join(", ")} (use ${CATEGORIES.join(",")}).`);
-  process.stdout.write(format === "json" ? JSON.stringify(insights, null, 2) + "\n" : formatInsights(report, insights, focus));
+  process.stdout.write(format === "json" ? JSON.stringify(insights, null, 2) + "\n" : formatInsights(report, insights, focus, lang));
   return EXIT.OK;
 }
 
@@ -209,6 +213,12 @@ function int(s: string, flag: string): number {
   const n = Number(s);
   if (!Number.isInteger(n)) throw new UsageError(`${flag} must be an integer.`);
   return n;
+}
+
+function resolveHtmlLang(s: string | undefined): "en" | "zh-TW" {
+  if (s === undefined) return "en";
+  if (s === "en" || s === "zh-TW") return s;
+  throw new UsageError("--lang must be en or zh-TW.");
 }
 
 // Allow `tsx src/cli/index.ts ...`

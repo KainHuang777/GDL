@@ -102,6 +102,7 @@ export default defineAdapter({
       policies: [
         { id: "default", type: "priority", description: "Pills first, then the strongest unlocked monster, else meditate.", actions: actions.map((a) => a.id) },
         { id: "meditate_only", type: "priority", description: "Never fights (pacifist route).", actions: meditate.map((a) => a.id) },
+        { id: "smart", type: "adaptive", description: "Picks the action with the best progress rate toward the next realm (2h look-ahead).", lookaheadMinutes: 120 },
       ],
       unsupported: [
         { feature: "combat outcome", reason: "Fights always succeed; win rate / HP / equipment are not in the mock data." },

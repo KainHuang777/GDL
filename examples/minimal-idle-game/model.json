@@ -35,6 +35,7 @@
   ],
   "policies": [
     { "id": "default", "type": "priority", "description": "Buy the pickaxe as soon as possible, then mine with it.", "actions": ["buy_pickaxe", "mine_with_pickaxe", "mine_by_hand"] },
-    { "id": "hand_only", "type": "priority", "description": "Never buys tools.", "actions": ["mine_by_hand"] }
+    { "id": "hand_only", "type": "priority", "description": "Never buys tools.", "actions": ["mine_by_hand"] },
+    { "id": "smart", "type": "adaptive", "description": "Scores legal actions by progress rate with a 2h look-ahead; decides for itself whether to invest.", "lookaheadMinutes": 120 }
   ]
 }

@@ -9,6 +9,7 @@ import { parseScenario } from "../src/core/scenario.js";
 import { buildInsights } from "../src/insights/insights.js";
 import { renderHtml } from "../src/report/html.js";
 import { main } from "../src/cli/index.js";
+import { validateModel } from "../src/schema/validate.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ex = (p: string) => path.join(root, "examples", p);
@@ -64,6 +65,21 @@ test("html: self-contained, escaped, embedded JSON round-trips", async () => {
   assert.deepEqual(JSON.parse(m[1]!), JSON.parse(JSON.stringify(r)));
 });
 
+test("insights: zh-TW localizes finding titles and uses Chinese display names", async () => {
+  const r = await simulateProject(ex("dao-real"), { mode: "expected", policy: "smart", limits });
+  const zh = buildInsights(r, "zh-TW");
+  const en = buildInsights(r);
+  const zhOverflow = zh.findings.find((f) => f.id === "overflow")!;
+  const enOverflow = en.findings.find((f) => f.id === "overflow")!;
+  assert.ok(zhOverflow && enOverflow, JSON.stringify(zh.findings.map((f) => f.id)));
+  assert.match(zhOverflow.title, /溢出/);
+  assert.match(zhOverflow.title, /」/);
+  assert.doesNotMatch(zhOverflow.title, /overflows/);
+  assert.match(enOverflow.title, /overflows/);
+  assert.equal(zh.findings.length, en.findings.length);
+  assert.ok(r.simulation!.resources.some((x) => x.name), "dao-real resources carry Chinese names");
+});
+
 test("cli: inspect/report read saved reports; non-report input is a usage error", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "gdl-test-"));
   const json = path.join(dir, "r.json");
@@ -79,4 +95,50 @@ test("cli: inspect/report read saved reports; non-report input is a usage error"
   assert.equal(await silence(() => main(["inspect", bogus])), 2);
   assert.equal(await silence(() => main(["report", bogus])), 2);
   assert.equal(await silence(() => main(["inspect", path.join(dir, "missing.json")])), 2);
+});
+
+
+test("round-2: wait attribution, strategy waste, kind-aware economy and caveats (dao-real)", async () => {
+  const r = await simulateProject(ex("dao-real"), { mode: "expected", policy: "smart", limits });
+  const sim = r.simulation!;
+  const era4 = sim.nodes.find((n) => n.id === "era_4")!;
+  assert.equal(era4.limiters[0]!.resource, "lingli");
+  assert.ok(era4.limiters[0]!.share > 0.9);
+  const w = sim.waste.find((x) => x.resource === "foundation_pill")!;
+  assert.ok(w && w.unusedShare > 0.5, JSON.stringify(sim.waste));
+  const ins = buildInsights(r);
+  const waste = ins.findings.find((f) => f.id === "strategy-waste" && f.subject === "action:craft_foundation_pill")!;
+  assert.equal(waste.category, "policy");
+  assert.equal(waste.severity, "warning");
+  const wait = ins.findings.find((f) => f.id === "wait-cause" && f.subject === "node:era_4")!;
+  assert.ok(wait?.caveats?.length, "lingli finding carries model-gap caveats");
+  const noSink = ins.findings.find((f) => f.id === "no-sink");
+  assert.ok(!noSink || !/training|skill_/.test(noSink.detail + noSink.title));
+  assert.ok(!ins.findings.some((f) => f.id === "overflow" && f.severity === "warning" && f.caveats), "caveated overflow is downgraded");
+  const zh = buildInsights(r, "zh-TW");
+  assert.match(zh.findings.find((f) => f.id === "strategy-waste")!.detail, /策略效率/);
+  assert.ok(!/\$\{|\{\w+\}/.test(JSON.stringify(ins.findings)), "no unfilled templates");
+});
+
+test("round-2: scenario with different end times does not compare final resources", async () => {
+  const sc = parseScenario(JSON.parse(readFileSync(path.join(ex("dao-real"), "scenarios/lingli-regen-plus-50.json"), "utf8")));
+  const r = await compareProject(ex("dao-real"), [sc], { mode: "expected", policy: "smart", limits });
+  const view = buildInsights(r).scenarios![0]!;
+  assert.equal(view.resourcesComparable, false);
+  assert.equal(view.resourceImpact.length, 0);
+  assert.ok(view.nodeImpact.some((n) => n.id === "era_4"));
+});
+
+test("round-2: resource kind and unsupported.affects are validated", () => {
+  const base = JSON.parse(readFileSync(ex("minimal-idle-game/model.json"), "utf8"));
+  const bad = structuredClone(base);
+  bad.resources[0].kind = "bogus";
+  bad.unsupported = [{ feature: "x", reason: "y", affects: ["nope"] }];
+  const v = validateModel(bad);
+  assert.equal(v.ok, false);
+  const codes = v.errors.map((e) => e.code);
+  assert.ok(codes.includes("INVALID_FIELD") && codes.includes("REF_NOT_FOUND"), codes.join());
+  const good = structuredClone(base);
+  good.resources[0].kind = "counter";
+  assert.equal(validateModel(good).ok, true);
 });

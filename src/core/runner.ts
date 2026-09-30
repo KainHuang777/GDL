@@ -1,5 +1,5 @@
-import type { GameModel } from "../schema/types.js";
-import { resolvePolicy, UsageError } from "./policy.js";
+import type { GameModel, Policy, ResourceKind } from "../schema/types.js";
+import { adaptiveParams, policyPool, resolvePolicy, UsageError } from "./policy.js";
 import { createRng, deriveSeed } from "./rng.js";
 import { simulateRun, type Blocker, type RunResult, type SimLimits, type SimMode, type StopReason } from "./simulate.js";
 import { round, summarize, type Summary } from "./stats.js";
@@ -21,6 +21,8 @@ export interface SimulationOptions {
 
 export interface NodeStats {
   id: string;
+  /** Display name from the model, when provided. */
+  name?: string;
   order: number;
   /** Fraction of runs that reached the node. */
   reachRate: number;
@@ -28,10 +30,18 @@ export interface NodeStats {
   actions: Summary | null;
   /** Minutes since the previous node, over runs that reached both. */
   deltaMinute: Summary | null;
+  /**
+   * What the node's waiting time was spent on (critical-path resource at each wait), mean over
+   * runs that reached it, sorted by minutes. Empty when the node needed no waiting.
+   */
+  limiters: { resource: string; name?: string; minutes: number; share: number }[];
 }
 
 export interface ResourceStats {
   id: string;
+  /** Display name from the model, when provided. */
+  name?: string;
+  kind: ResourceKind;
   final: Summary;
   produced: Summary;
   consumed: Summary;
@@ -43,8 +53,40 @@ export interface ResourceStats {
   netPerHour: number;
 }
 
+/** Crafted goods the policy made but never needed: the resources spent on them were wasted. */
+export interface WasteStat {
+  /** Action that produced the surplus. */
+  action: string;
+  actionName?: string;
+  /** Crafted resource that piled up. */
+  resource: string;
+  resourceName?: string;
+  /** Mean units made / left unused per run. */
+  made: number;
+  unused: number;
+  unusedShare: number;
+  /** Resources spent on the unused units (mean per run) and their share of that resource's total consumption. */
+  wastedCosts: { resource: string; name?: string; amount: number; shareOfConsumed: number }[];
+}
+
+export interface PolicyInfo {
+  id: string;
+  type: "priority" | "adaptive";
+  implicit: boolean;
+  /** Priority order (priority) or candidate pool (adaptive). */
+  actions: string[];
+  adaptive?: { objective: string; temperature: number; lookaheadMinutes: number };
+}
+
+function policyInfo(model: GameModel, policy: Policy, implicit: boolean): PolicyInfo {
+  const info: PolicyInfo = { id: policy.id, type: policy.type, implicit, actions: policyPool(model, policy) };
+  const ap = adaptiveParams(policy);
+  if (ap) info.adaptive = ap;
+  return info;
+}
+
 export interface SimulationResult {
-  policy: { id: string; implicit: boolean; actions: string[] };
+  policy: PolicyInfo;
   mode: SimMode;
   runs: number;
   seed: number | null;
@@ -55,7 +97,9 @@ export interface SimulationResult {
   minutesWaiting: Summary;
   nodes: NodeStats[];
   resources: ResourceStats[];
-  actionUsage: { id: string; mean: number }[];
+  actionUsage: { id: string; name?: string; mean: number }[];
+  /** Surplus crafting by the policy (kind "crafted" resources). */
+  waste: WasteStat[];
   /** Most frequent blocker description over stuck runs. */
   stuck: { count: number; examples: Blocker[] } | null;
   /** Where runs ended without completing the track: next node + most common reason, by frequency. */
@@ -80,7 +124,7 @@ export function runSimulation(model: GameModel, opts: SimulationOptions): Simula
   }
 
   const out: SimulationResult = {
-    policy: { id: policy.id, implicit, actions: policy.actions },
+    policy: policyInfo(model, policy, implicit),
     mode: opts.mode,
     runs,
     seed,
@@ -108,14 +152,17 @@ function aggregate(model: GameModel, results: RunResult[]) {
           return a && b ? [b.minute - a.minute] : [];
         })
       : [];
-    return {
+    const nodeStats: NodeStats = {
       id: node.id,
       order: node.order,
       reachRate: round(reached.length / n),
       minute: summarize(reached.map((x) => x.minute)),
       actions: summarize(reached.map((x) => x.actions)),
       deltaMinute: prev ? summarize(deltas) : null,
+      limiters: nodeLimiters(model, node.id, results),
     };
+    if (node.name) nodeStats.name = node.name;
+    return nodeStats;
   });
 
   const resources: ResourceStats[] = model.resources.map((res) => {
@@ -123,8 +170,9 @@ function aggregate(model: GameModel, results: RunResult[]) {
     const consumed = results.map((r) => sum(r.flows[res.id]!.consumed));
     const minutes = results.map((r) => r.minutes);
     const net = results.map((_, i) => (minutes[i]! > 0 ? ((produced[i]! - consumed[i]!) / minutes[i]!) * 60 : 0));
-    return {
+    const rs: ResourceStats = {
       id: res.id,
+      kind: res.kind ?? "currency",
       final: summarize(results.map((r) => r.finalResources[res.id] ?? 0))!,
       produced: summarize(produced)!,
       consumed: summarize(consumed)!,
@@ -133,9 +181,11 @@ function aggregate(model: GameModel, results: RunResult[]) {
       topSinks: meanBreakdown(results.map((r) => r.flows[res.id]!.consumed), n).map(([sink, mean]) => ({ sink, mean })),
       netPerHour: round(net.reduce((a, b) => a + b, 0) / n),
     };
+    if (res.name) rs.name = res.name;
+    return rs;
   });
 
-  const actionUsage = model.actions.map((a) => ({ id: a.id, mean: round(results.reduce((s, r) => s + (r.actionCounts[a.id] ?? 0), 0) / n) }));
+  const actionUsage = model.actions.map((a) => ({ id: a.id, ...(a.name ? { name: a.name } : {}), mean: round(results.reduce((s, r) => s + (r.actionCounts[a.id] ?? 0), 0) / n) }));
 
   const stuckRuns = results.filter((r) => r.stopReason === "stuck");
   const completed = stopReasons.completed ?? 0;
@@ -157,9 +207,81 @@ function aggregate(model: GameModel, results: RunResult[]) {
     nodes,
     resources,
     actionUsage,
+    waste: wasteStats(model, results),
     stuck: stuckRuns.length ? { count: stuckRuns.length, examples: stuckRuns[0]!.blockers ?? [] } : null,
     stalls,
   };
+}
+
+/** Mean waiting minutes per critical-path resource while pursuing 
+odeId, over runs that reached it. */
+function nodeLimiters(model: GameModel, nodeId: string, results: RunResult[]): NodeStats["limiters"] {
+  const reached = results.filter((r) => r.nodes[nodeId]);
+  if (!reached.length) return [];
+  const acc = new Map<string, number>();
+  for (const r of reached) for (const [res, min] of Object.entries(r.waitBy[nodeId] ?? {})) acc.set(res, (acc.get(res) ?? 0) + min);
+  const total = [...acc.values()].reduce((a, b) => a + b, 0);
+  if (total <= 0) return [];
+  const names = new Map(model.resources.map((x) => [x.id, x.name]));
+  return [...acc.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([resource, min]) => {
+      const name = names.get(resource);
+      return { resource, ...(name ? { name } : {}), minutes: round(min / reached.length), share: round(min / total, 4) };
+    });
+}
+
+/**
+ * Surplus crafting: for each action that outputs a "crafted" resource, units made minus units the run
+ * actually consumed or had to hold as a requirement. Costs are apportioned by the unused share.
+ */
+function wasteStats(model: GameModel, results: RunResult[]): WasteStat[] {
+  const n = results.length;
+  const kinds = new Map(model.resources.map((r) => [r.id, r.kind ?? "currency"]));
+  const resName = new Map(model.resources.map((r) => [r.id, r.name]));
+  // Largest amount of a resource that must be held at once (>= conditions on nodes and actions).
+  const hold = new Map<string, number>();
+  const noteHold = (conds: { type: string; resource?: string; gte?: number }[] | undefined) => {
+    for (const c of conds ?? []) if (c.type === "resource" && c.resource && c.gte) hold.set(c.resource, Math.max(hold.get(c.resource) ?? 0, c.gte));
+  };
+  for (const node of model.progression) noteHold(node.requirements as never);
+  for (const a of model.actions) noteHold(a.requires as never);
+  const mean = (f: (r: RunResult) => number) => results.reduce((s, r) => s + f(r), 0) / n;
+  const out: WasteStat[] = [];
+  for (const a of model.actions) {
+    const uses = mean((r) => r.actionCounts[a.id] ?? 0);
+    if (uses <= 0) continue;
+    const outs = new Set<string>();
+    const collect = (o: NonNullable<typeof a.outcomes>[number]) => {
+      if (o.type === "resource") outs.add(o.resource);
+      else for (const e of o.entries) e.outcomes.forEach(collect);
+    };
+    (a.outcomes ?? []).forEach(collect);
+    for (const res of outs) {
+      if (kinds.get(res) !== "crafted") continue;
+      const key = `action:${a.id}`;
+      const made = mean((r) => (r.flows[res]?.produced[key] ?? 0) + (r.flows[res]?.overflowBy[key] ?? 0));
+      const consumed = mean((r) => Object.values(r.flows[res]?.consumed ?? {}).reduce((x, y) => x + y, 0));
+      const madeAll = mean((r) => Object.values(r.flows[res]?.produced ?? {}).reduce((x, y) => x + y, 0) + (r.flows[res]?.overflow ?? 0));
+      if (made <= 0 || madeAll <= 0) continue;
+      // Needed = consumed + held requirement; apportion across producing actions by their share of output.
+      const needed = Math.min(madeAll, consumed + (hold.get(res) ?? 0));
+      const unusedAll = Math.max(0, madeAll - needed);
+      const unused = unusedAll * (made / madeAll);
+      if (unused < 1e-6) continue;
+      const share = unused / made;
+      const wastedCosts = (a.costs ?? []).map((c) => {
+        const amount = uses * c.amount * share;
+        const totalConsumed = mean((r) => Object.values(r.flows[c.resource]?.consumed ?? {}).reduce((x, y) => x + y, 0));
+        const name = resName.get(c.resource);
+        return { resource: c.resource, ...(name ? { name } : {}), amount: round(amount), shareOfConsumed: totalConsumed > 0 ? round(amount / totalConsumed, 4) : 0 };
+      });
+      const an = a.name;
+      const rn = resName.get(res);
+      out.push({ action: a.id, ...(an ? { actionName: an } : {}), resource: res, ...(rn ? { resourceName: rn } : {}), made: round(made), unused: round(unused), unusedShare: round(share, 4), wastedCosts });
+    }
+  }
+  return out.sort((x, y) => y.unusedShare - x.unusedShare);
 }
 
 function sum(rec: Record<string, number>): number {

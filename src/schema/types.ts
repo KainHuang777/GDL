@@ -22,9 +22,18 @@ export interface ProjectInfo {
   genre?: string;
 }
 
+/**
+ * How a resource behaves for analysis. Default currency.
+ * - currency: earned and spent; overflow / hoarding / deficit rules apply.
+ * - counter: progress statistics or levels (training time, skill level); never expected to be spent.
+ * - crafted: intermediate goods made by actions; waste is judged against what is actually needed.
+ */
+export type ResourceKind = "currency" | "counter" | "crafted";
+
 export interface Resource {
   id: string;
   name?: string;
+  kind?: ResourceKind;
   unit?: string;
   /** Starting amount. Default 0. */
   initial?: number;
@@ -112,12 +121,38 @@ export interface PriorityPolicy {
   actions: string[];
 }
 
-export type Policy = PriorityPolicy;
+/**
+ * Decides at every step from the CURRENT state instead of following a fixed order.
+ * Candidates = legal actions (affordable, requirements met, fits in remaining time) from `actions` (default: all).
+ * Each candidate is scored by how much it advances the next progression node; the best one is played.
+ * - lookaheadMinutes > 0: score = progress gained after `lookaheadMinutes` of play that starts with the candidate,
+ *   continued by the greedy rule in expected-value mode (handles "invest first" actions such as buying a tool).
+ * - lookaheadMinutes = 0: one-step greedy, progress per minute (cheap, but never invests).
+ * - temperature = 0: always the best candidate (deterministic). > 0 (monte-carlo only): sampled among candidates,
+ *   weight = exp((score / bestScore - 1) / temperature), i.e. "10% worse" is e^-1 as likely at temperature 0.1.
+ */
+export interface AdaptivePolicy {
+  id: string;
+  type: "adaptive";
+  description?: string;
+  /** Candidate pool and tie-break order. Default: every action in declaration order. */
+  actions?: string[];
+  /** Only "progress-rate" in v0.1. */
+  objective?: "progress-rate";
+  /** >= 0. Default 0. Ignored in expected mode (always deterministic). */
+  temperature?: number;
+  /** >= 0 in-game minutes. Default 120. */
+  lookaheadMinutes?: number;
+}
+
+export type Policy = PriorityPolicy | AdaptivePolicy;
 
 /** Adapter-declared gameplay that is intentionally NOT modelled. Surfaced in every report. */
 export interface UnsupportedFeature {
   feature: string;
   reason: string;
+  /** Resource ids whose numbers are unreliable because this gameplay is not modelled. */
+  affects?: string[];
 }
 
 export interface GameModel {

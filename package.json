@@ -11,7 +11,7 @@
     "gdl": "tsx src/cli/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test tests/validate.test.ts tests/simulate.test.ts tests/project.test.ts tests/insights.test.ts"
+    "test": "tsx --test tests/validate.test.ts tests/simulate.test.ts tests/project.test.ts tests/insights.test.ts tests/adaptive.test.ts"
   },
   "engines": {
     "node": ">=20"

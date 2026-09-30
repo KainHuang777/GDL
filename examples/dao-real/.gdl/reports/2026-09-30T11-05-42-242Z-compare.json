@@ -1,0 +1,2444 @@
+{
+  "kind": "compare",
+  "provenance": {
+    "gdlVersion": "0.1.0",
+    "reportVersion": "0.1",
+    "schemaVersion": "0.1",
+    "generatedAt": "2026-09-30T11:05:42.242Z",
+    "project": {
+      "id": "dao",
+      "root": "D:\\work\\fortest\\GDL\\examples\\dao-real"
+    },
+    "adapter": {
+      "id": "dao",
+      "version": "0.1.0",
+      "apiVersion": "0.1"
+    },
+    "modelSha256": "81c9c349989c8073e869c35ea5430f9fcd70b003e00a17a82df89f94a6a2a454",
+    "sources": [
+      {
+        "path": "data/eras.csv",
+        "sha256": "067c8243eeea03b337d189573b14aa866c5ccc60236d873e3cd1ff2936d74f83",
+        "bytes": 2307
+      },
+      {
+        "path": "data/Resources.csv",
+        "sha256": "fff976fe5ddf37cd3b4783fe3a6f55fa15934346f30eb2ab62cc65ca88232045",
+        "bytes": 4760
+      },
+      {
+        "path": "data/skills.csv",
+        "sha256": "4ede1319a685e914ed5f05d1abe98b76cb88f4e2c6c2634944878cbaf7290cab",
+        "bytes": 5168
+      }
+    ]
+  },
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "warnings": []
+  },
+  "unsupported": [
+    {
+      "feature": "era resource multiplier",
+      "reason": "Real production is scaled by era.resourceMultiplier; GDL regenPerMinute is static, so later eras are modelled with the same rates."
+    },
+    {
+      "feature": "building purchase/upgrade",
+      "reason": "A fixed Lv2 reference build is assumed; building cost curves (buildingCost.ts) are not modelled."
+    },
+    {
+      "feature": "dynamic capacity",
+      "reason": "Storage buildings and capacity upgrades (capacity.ts) are collapsed into fixed resource maxima."
+    },
+    {
+      "feature": "tribulation randomness",
+      "reason": "Era 3+ breakthrough is a 50% dice roll (failure drops levels); modelled deterministically as a foundation_pill >= 2 requirement."
+    },
+    {
+      "feature": "offline progress / lifespan / reincarnation",
+      "reason": "Simulation is continuous play time; lifespan exhaustion and daoHeart inheritance are out of scope."
+    },
+    {
+      "feature": "crafting crits",
+      "reason": "The 5% x3 / 10% x2 craft multipliers in craft.ts are not modelled."
+    },
+    {
+      "feature": "manual gathering, sect tasks, market, encounters, beast buffs",
+      "reason": "Player-policy layer not modelled in v0.1."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "lingli-regen-plus-50",
+      "applied": [
+        {
+          "target": "resources[id=lingli].regenPerMinute",
+          "op": "multiply",
+          "matches": [
+            {
+              "path": "resources[0].regenPerMinute",
+              "before": 94,
+              "after": 141
+            }
+          ]
+        }
+      ],
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "warnings": []
+      },
+      "description": "靈力再生 +50%（模擬更強茅屋/聚靈陣）",
+      "simulation": {
+        "policy": {
+          "id": "smart",
+          "type": "adaptive",
+          "implicit": false,
+          "actions": [
+            "learn_basic_meditation",
+            "learn_foundation_building",
+            "learn_golden_core_formation",
+            "learn_nascent_soul_incubation",
+            "craft_foundation_pill",
+            "craft_stone_mid",
+            "craft_golden_core_pill",
+            "craft_talisman"
+          ],
+          "adaptive": {
+            "objective": "progress-rate",
+            "temperature": 0,
+            "lookaheadMinutes": 120
+          }
+        },
+        "mode": "expected",
+        "runs": 1,
+        "seed": null,
+        "limits": {
+          "maxMinutes": 1440,
+          "maxActions": 100000,
+          "stopOnComplete": true
+        },
+        "stopReasons": {
+          "completed": 1
+        },
+        "completionRate": 1,
+        "minutes": {
+          "count": 1,
+          "mean": 578.723404,
+          "min": 578.723404,
+          "p10": 578.723404,
+          "median": 578.723404,
+          "p90": 578.723404,
+          "max": 578.723404
+        },
+        "minutesWaiting": {
+          "count": 1,
+          "mean": 578.723404,
+          "min": 578.723404,
+          "p10": 578.723404,
+          "median": 578.723404,
+          "p90": 578.723404,
+          "max": 578.723404
+        },
+        "nodes": [
+          {
+            "id": "era_1",
+            "order": 0,
+            "reachRate": 1,
+            "minute": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "actions": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "deltaMinute": null
+          },
+          {
+            "id": "era_2",
+            "order": 1,
+            "reachRate": 1,
+            "minute": {
+              "count": 1,
+              "mean": 67,
+              "min": 67,
+              "p10": 67,
+              "median": 67,
+              "p90": 67,
+              "max": 67
+            },
+            "actions": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "deltaMinute": {
+              "count": 1,
+              "mean": 67,
+              "min": 67,
+              "p10": 67,
+              "median": 67,
+              "p90": 67,
+              "max": 67
+            }
+          },
+          {
+            "id": "era_3",
+            "order": 2,
+            "reachRate": 1,
+            "minute": {
+              "count": 1,
+              "mean": 224.113475,
+              "min": 224.113475,
+              "p10": 224.113475,
+              "median": 224.113475,
+              "p90": 224.113475,
+              "max": 224.113475
+            },
+            "actions": {
+              "count": 1,
+              "mean": 367,
+              "min": 367,
+              "p10": 367,
+              "median": 367,
+              "p90": 367,
+              "max": 367
+            },
+            "deltaMinute": {
+              "count": 1,
+              "mean": 157.113475,
+              "min": 157.113475,
+              "p10": 157.113475,
+              "median": 157.113475,
+              "p90": 157.113475,
+              "max": 157.113475
+            }
+          },
+          {
+            "id": "era_4",
+            "order": 3,
+            "reachRate": 1,
+            "minute": {
+              "count": 1,
+              "mean": 578.723404,
+              "min": 578.723404,
+              "p10": 578.723404,
+              "median": 578.723404,
+              "p90": 578.723404,
+              "max": 578.723404
+            },
+            "actions": {
+              "count": 1,
+              "mean": 367,
+              "min": 367,
+              "p10": 367,
+              "median": 367,
+              "p90": 367,
+              "max": 367
+            },
+            "deltaMinute": {
+              "count": 1,
+              "mean": 354.609929,
+              "min": 354.609929,
+              "p10": 354.609929,
+              "median": 354.609929,
+              "p90": 354.609929,
+              "max": 354.609929
+            }
+          }
+        ],
+        "resources": [
+          {
+            "id": "lingli",
+            "final": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "produced": {
+              "count": 1,
+              "mean": 81600,
+              "min": 81600,
+              "p10": 81600,
+              "median": 81600,
+              "p90": 81600,
+              "max": 81600
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 81600,
+              "min": 81600,
+              "p10": 81600,
+              "median": 81600,
+              "p90": 81600,
+              "max": 81600
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 81600
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "node:era_4",
+                "mean": 50000
+              },
+              {
+                "sink": "node:era_3",
+                "mean": 20000
+              },
+              {
+                "sink": "node:era_2",
+                "mean": 5000
+              },
+              {
+                "sink": "action:craft_foundation_pill",
+                "mean": 3400
+              },
+              {
+                "sink": "action:craft_stone_mid",
+                "mean": 2700
+              },
+              {
+                "sink": "action:craft_talisman",
+                "mean": 500
+              }
+            ],
+            "netPerHour": 0
+          },
+          {
+            "id": "money",
+            "final": {
+              "count": 1,
+              "mean": 10000,
+              "min": 10000,
+              "p10": 10000,
+              "median": 10000,
+              "p90": 10000,
+              "max": 10000
+            },
+            "produced": {
+              "count": 1,
+              "mean": 16000,
+              "min": 16000,
+              "p10": 16000,
+              "median": 16000,
+              "p90": 16000,
+              "max": 16000
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 6000,
+              "min": 6000,
+              "p10": 6000,
+              "median": 6000,
+              "p90": 6000,
+              "max": 6000
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 39557.446809,
+              "min": 39557.446809,
+              "p10": 39557.446809,
+              "median": 39557.446809,
+              "p90": 39557.446809,
+              "max": 39557.446809
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 16000
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "node:era_3",
+                "mean": 5000
+              },
+              {
+                "sink": "node:era_2",
+                "mean": 1000
+              }
+            ],
+            "netPerHour": 1036.764706
+          },
+          {
+            "id": "wood",
+            "final": {
+              "count": 1,
+              "mean": 1000,
+              "min": 1000,
+              "p10": 1000,
+              "median": 1000,
+              "p90": 1000,
+              "max": 1000
+            },
+            "produced": {
+              "count": 1,
+              "mean": 1100,
+              "min": 1100,
+              "p10": 1100,
+              "median": 1100,
+              "p90": 1100,
+              "max": 1100
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 100,
+              "min": 100,
+              "p10": 100,
+              "median": 100,
+              "p90": 100,
+              "max": 100
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 12789.361702,
+              "min": 12789.361702,
+              "p10": 12789.361702,
+              "median": 12789.361702,
+              "p90": 12789.361702,
+              "max": 12789.361702
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 1100
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:craft_talisman",
+                "mean": 100
+              }
+            ],
+            "netPerHour": 103.676471
+          },
+          {
+            "id": "stone_low",
+            "final": {
+              "count": 1,
+              "mean": 11989.361702,
+              "min": 11989.361702,
+              "p10": 11989.361702,
+              "median": 11989.361702,
+              "p90": 11989.361702,
+              "max": 11989.361702
+            },
+            "produced": {
+              "count": 1,
+              "mean": 13889.361702,
+              "min": 13889.361702,
+              "p10": 13889.361702,
+              "median": 13889.361702,
+              "p90": 13889.361702,
+              "max": 13889.361702
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 1900,
+              "min": 1900,
+              "p10": 1900,
+              "median": 1900,
+              "p90": 1900,
+              "max": 1900
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 13889.361702
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:craft_stone_mid",
+                "mean": 1350
+              },
+              {
+                "sink": "node:era_2",
+                "mean": 500
+              },
+              {
+                "sink": "action:craft_talisman",
+                "mean": 50
+              }
+            ],
+            "netPerHour": 1243.014706
+          },
+          {
+            "id": "skill_point",
+            "final": {
+              "count": 1,
+              "mean": 100000,
+              "min": 100000,
+              "p10": 100000,
+              "median": 100000,
+              "p90": 100000,
+              "max": 100000
+            },
+            "produced": {
+              "count": 1,
+              "mean": 156700,
+              "min": 156700,
+              "p10": 156700,
+              "median": 156700,
+              "p90": 156700,
+              "max": 156700
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 56700,
+              "min": 56700,
+              "p10": 56700,
+              "median": 56700,
+              "p90": 56700,
+              "max": 56700
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 259980.851064,
+              "min": 259980.851064,
+              "p10": 259980.851064,
+              "median": 259980.851064,
+              "p90": 259980.851064,
+              "max": 259980.851064
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 156700
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:learn_golden_core_formation",
+                "mean": 38250
+              },
+              {
+                "sink": "action:learn_foundation_building",
+                "mean": 18000
+              },
+              {
+                "sink": "action:learn_basic_meditation",
+                "mean": 450
+              }
+            ],
+            "netPerHour": 10367.647059
+          },
+          {
+            "id": "spirit_grass_low",
+            "final": {
+              "count": 1,
+              "mean": 500,
+              "min": 500,
+              "p10": 500,
+              "median": 500,
+              "p90": 500,
+              "max": 500
+            },
+            "produced": {
+              "count": 1,
+              "mean": 704,
+              "min": 704,
+              "p10": 704,
+              "median": 704,
+              "p90": 704,
+              "max": 704
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 204,
+              "min": 204,
+              "p10": 204,
+              "median": 204,
+              "p90": 204,
+              "max": 204
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 3115.574468,
+              "min": 3115.574468,
+              "p10": 3115.574468,
+              "median": 3115.574468,
+              "p90": 3115.574468,
+              "max": 3115.574468
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 704
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:craft_foundation_pill",
+                "mean": 204
+              }
+            ],
+            "netPerHour": 51.838235
+          },
+          {
+            "id": "spirit_grass_100y",
+            "final": {
+              "count": 1,
+              "mean": 100,
+              "min": 100,
+              "p10": 100,
+              "median": 100,
+              "p90": 100,
+              "max": 100
+            },
+            "produced": {
+              "count": 1,
+              "mean": 108,
+              "min": 108,
+              "p10": 108,
+              "median": 108,
+              "p90": 108,
+              "max": 108
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 8,
+              "min": 8,
+              "p10": 8,
+              "median": 8,
+              "p90": 8,
+              "max": 8
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 586.468085,
+              "min": 586.468085,
+              "p10": 586.468085,
+              "median": 586.468085,
+              "p90": 586.468085,
+              "max": 586.468085
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 108
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:craft_golden_core_pill",
+                "mean": 8
+              }
+            ],
+            "netPerHour": 10.367647
+          },
+          {
+            "id": "stone_mid",
+            "final": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "produced": {
+              "count": 1,
+              "mean": 270,
+              "min": 270,
+              "p10": 270,
+              "median": 270,
+              "p90": 270,
+              "max": 270
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 270,
+              "min": 270,
+              "p10": 270,
+              "median": 270,
+              "p90": 270,
+              "max": 270
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:craft_stone_mid",
+                "mean": 270
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "node:era_4",
+                "mean": 200
+              },
+              {
+                "sink": "node:era_3",
+                "mean": 50
+              },
+              {
+                "sink": "action:craft_golden_core_pill",
+                "mean": 20
+              }
+            ],
+            "netPerHour": 0
+          },
+          {
+            "id": "talisman",
+            "final": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "produced": {
+              "count": 1,
+              "mean": 10,
+              "min": 10,
+              "p10": 10,
+              "median": 10,
+              "p90": 10,
+              "max": 10
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 10,
+              "min": 10,
+              "p10": 10,
+              "median": 10,
+              "p90": 10,
+              "max": 10
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:craft_talisman",
+                "mean": 10
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "node:era_3",
+                "mean": 10
+              }
+            ],
+            "netPerHour": 0
+          },
+          {
+            "id": "foundation_pill",
+            "final": {
+              "count": 1,
+              "mean": 56,
+              "min": 56,
+              "p10": 56,
+              "median": 56,
+              "p90": 56,
+              "max": 56
+            },
+            "produced": {
+              "count": 1,
+              "mean": 68,
+              "min": 68,
+              "p10": 68,
+              "median": 68,
+              "p90": 68,
+              "max": 68
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 12,
+              "min": 12,
+              "p10": 12,
+              "median": 12,
+              "p90": 12,
+              "max": 12
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:craft_foundation_pill",
+                "mean": 68
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "action:craft_golden_core_pill",
+                "mean": 12
+              }
+            ],
+            "netPerHour": 5.805882
+          },
+          {
+            "id": "golden_core_pill",
+            "final": {
+              "count": 1,
+              "mean": 1,
+              "min": 1,
+              "p10": 1,
+              "median": 1,
+              "p90": 1,
+              "max": 1
+            },
+            "produced": {
+              "count": 1,
+              "mean": 4,
+              "min": 4,
+              "p10": 4,
+              "median": 4,
+              "p90": 4,
+              "max": 4
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 3,
+              "min": 3,
+              "p10": 3,
+              "median": 3,
+              "p90": 3,
+              "max": 3
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:craft_golden_core_pill",
+                "mean": 4
+              }
+            ],
+            "topSinks": [
+              {
+                "sink": "node:era_4",
+                "mean": 3
+              }
+            ],
+            "netPerHour": 0.103676
+          },
+          {
+            "id": "training",
+            "final": {
+              "count": 1,
+              "mean": 578.723404,
+              "min": 578.723404,
+              "p10": 578.723404,
+              "median": 578.723404,
+              "p90": 578.723404,
+              "max": 578.723404
+            },
+            "produced": {
+              "count": 1,
+              "mean": 578.723404,
+              "min": 578.723404,
+              "p10": 578.723404,
+              "median": 578.723404,
+              "p90": 578.723404,
+              "max": 578.723404
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "regen",
+                "mean": 578.723404
+              }
+            ],
+            "topSinks": [],
+            "netPerHour": 60
+          },
+          {
+            "id": "skill_basic_meditation",
+            "final": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "produced": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:learn_basic_meditation",
+                "mean": 5
+              }
+            ],
+            "topSinks": [],
+            "netPerHour": 0.518382
+          },
+          {
+            "id": "skill_foundation_building",
+            "final": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "produced": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:learn_foundation_building",
+                "mean": 5
+              }
+            ],
+            "topSinks": [],
+            "netPerHour": 0.518382
+          },
+          {
+            "id": "skill_golden_core_formation",
+            "final": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "produced": {
+              "count": 1,
+              "mean": 5,
+              "min": 5,
+              "p10": 5,
+              "median": 5,
+              "p90": 5,
+              "max": 5
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [
+              {
+                "source": "action:learn_golden_core_formation",
+                "mean": 5
+              }
+            ],
+            "topSinks": [],
+            "netPerHour": 0.518382
+          },
+          {
+            "id": "skill_nascent_soul_incubation",
+            "final": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "produced": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "consumed": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "overflow": {
+              "count": 1,
+              "mean": 0,
+              "min": 0,
+              "p10": 0,
+              "median": 0,
+              "p90": 0,
+              "max": 0
+            },
+            "topSources": [],
+            "topSinks": [],
+            "netPerHour": 0
+          }
+        ],
+        "actionUsage": [
+          {
+            "id": "learn_basic_meditation",
+            "mean": 5
+          },
+          {
+            "id": "learn_foundation_building",
+            "mean": 5
+          },
+          {
+            "id": "learn_golden_core_formation",
+            "mean": 5
+          },
+          {
+            "id": "learn_nascent_soul_incubation",
+            "mean": 0
+          },
+          {
+            "id": "craft_foundation_pill",
+            "mean": 68
+          },
+          {
+            "id": "craft_stone_mid",
+            "mean": 270
+          },
+          {
+            "id": "craft_golden_core_pill",
+            "mean": 4
+          },
+          {
+            "id": "craft_talisman",
+            "mean": 10
+          }
+        ],
+        "stuck": null,
+        "stalls": []
+      },
+      "diff": {
+        "completionRate": {
+          "baseline": 1,
+          "scenario": 1,
+          "delta": 0,
+          "pct": 0
+        },
+        "nodes": [
+          {
+            "id": "era_1",
+            "reachRate": {
+              "baseline": 1,
+              "scenario": 1,
+              "delta": 0,
+              "pct": 0
+            },
+            "medianMinute": {
+              "baseline": 0,
+              "scenario": 0,
+              "delta": 0,
+              "pct": null
+            }
+          },
+          {
+            "id": "era_2",
+            "reachRate": {
+              "baseline": 1,
+              "scenario": 1,
+              "delta": 0,
+              "pct": 0
+            },
+            "medianMinute": {
+              "baseline": 67,
+              "scenario": 67,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "era_3",
+            "reachRate": {
+              "baseline": 1,
+              "scenario": 1,
+              "delta": 0,
+              "pct": 0
+            },
+            "medianMinute": {
+              "baseline": 301.06383,
+              "scenario": 224.113475,
+              "delta": -76.950355,
+              "pct": -25.56
+            }
+          },
+          {
+            "id": "era_4",
+            "reachRate": {
+              "baseline": 1,
+              "scenario": 1,
+              "delta": 0,
+              "pct": 0
+            },
+            "medianMinute": {
+              "baseline": 922.340426,
+              "scenario": 578.723404,
+              "delta": -343.617022,
+              "pct": -37.25
+            }
+          }
+        ],
+        "resourcesFinalMedian": [
+          {
+            "id": "lingli",
+            "delta": {
+              "baseline": 0,
+              "scenario": 0,
+              "delta": 0,
+              "pct": null
+            }
+          },
+          {
+            "id": "money",
+            "delta": {
+              "baseline": 10000,
+              "scenario": 10000,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "wood",
+            "delta": {
+              "baseline": 1000,
+              "scenario": 1000,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "stone_low",
+            "delta": {
+              "baseline": 20000,
+              "scenario": 11989.361702,
+              "delta": -8010.638298,
+              "pct": -40.05
+            }
+          },
+          {
+            "id": "skill_point",
+            "delta": {
+              "baseline": 79340.425532,
+              "scenario": 100000,
+              "delta": 20659.574468,
+              "pct": 26.04
+            }
+          },
+          {
+            "id": "spirit_grass_low",
+            "delta": {
+              "baseline": 500,
+              "scenario": 500,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "spirit_grass_100y",
+            "delta": {
+              "baseline": 100,
+              "scenario": 100,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "stone_mid",
+            "delta": {
+              "baseline": 0,
+              "scenario": 0,
+              "delta": 0,
+              "pct": null
+            }
+          },
+          {
+            "id": "talisman",
+            "delta": {
+              "baseline": 0,
+              "scenario": 0,
+              "delta": 0,
+              "pct": null
+            }
+          },
+          {
+            "id": "foundation_pill",
+            "delta": {
+              "baseline": 100,
+              "scenario": 56,
+              "delta": -44,
+              "pct": -44
+            }
+          },
+          {
+            "id": "golden_core_pill",
+            "delta": {
+              "baseline": 0,
+              "scenario": 1,
+              "delta": 1,
+              "pct": null
+            }
+          },
+          {
+            "id": "training",
+            "delta": {
+              "baseline": 922.340426,
+              "scenario": 578.723404,
+              "delta": -343.617022,
+              "pct": -37.25
+            }
+          },
+          {
+            "id": "skill_basic_meditation",
+            "delta": {
+              "baseline": 5,
+              "scenario": 5,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "skill_foundation_building",
+            "delta": {
+              "baseline": 5,
+              "scenario": 5,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "skill_golden_core_formation",
+            "delta": {
+              "baseline": 5,
+              "scenario": 5,
+              "delta": 0,
+              "pct": 0
+            }
+          },
+          {
+            "id": "skill_nascent_soul_incubation",
+            "delta": {
+              "baseline": 4,
+              "scenario": 0,
+              "delta": -4,
+              "pct": -100
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "baseline": {
+    "policy": {
+      "id": "smart",
+      "type": "adaptive",
+      "implicit": false,
+      "actions": [
+        "learn_basic_meditation",
+        "learn_foundation_building",
+        "learn_golden_core_formation",
+        "learn_nascent_soul_incubation",
+        "craft_foundation_pill",
+        "craft_stone_mid",
+        "craft_golden_core_pill",
+        "craft_talisman"
+      ],
+      "adaptive": {
+        "objective": "progress-rate",
+        "temperature": 0,
+        "lookaheadMinutes": 120
+      }
+    },
+    "mode": "expected",
+    "runs": 1,
+    "seed": null,
+    "limits": {
+      "maxMinutes": 1440,
+      "maxActions": 100000,
+      "stopOnComplete": true
+    },
+    "stopReasons": {
+      "completed": 1
+    },
+    "completionRate": 1,
+    "minutes": {
+      "count": 1,
+      "mean": 922.340426,
+      "min": 922.340426,
+      "p10": 922.340426,
+      "median": 922.340426,
+      "p90": 922.340426,
+      "max": 922.340426
+    },
+    "minutesWaiting": {
+      "count": 1,
+      "mean": 922.340426,
+      "min": 922.340426,
+      "p10": 922.340426,
+      "median": 922.340426,
+      "p90": 922.340426,
+      "max": 922.340426
+    },
+    "nodes": [
+      {
+        "id": "era_1",
+        "order": 0,
+        "reachRate": 1,
+        "minute": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "actions": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "deltaMinute": null
+      },
+      {
+        "id": "era_2",
+        "order": 1,
+        "reachRate": 1,
+        "minute": {
+          "count": 1,
+          "mean": 67,
+          "min": 67,
+          "p10": 67,
+          "median": 67,
+          "p90": 67,
+          "max": 67
+        },
+        "actions": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "deltaMinute": {
+          "count": 1,
+          "mean": 67,
+          "min": 67,
+          "p10": 67,
+          "median": 67,
+          "p90": 67,
+          "max": 67
+        }
+      },
+      {
+        "id": "era_3",
+        "order": 2,
+        "reachRate": 1,
+        "minute": {
+          "count": 1,
+          "mean": 301.06383,
+          "min": 301.06383,
+          "p10": 301.06383,
+          "median": 301.06383,
+          "p90": 301.06383,
+          "max": 301.06383
+        },
+        "actions": {
+          "count": 1,
+          "mean": 286,
+          "min": 286,
+          "p10": 286,
+          "median": 286,
+          "p90": 286,
+          "max": 286
+        },
+        "deltaMinute": {
+          "count": 1,
+          "mean": 234.06383,
+          "min": 234.06383,
+          "p10": 234.06383,
+          "median": 234.06383,
+          "p90": 234.06383,
+          "max": 234.06383
+        }
+      },
+      {
+        "id": "era_4",
+        "order": 3,
+        "reachRate": 1,
+        "minute": {
+          "count": 1,
+          "mean": 922.340426,
+          "min": 922.340426,
+          "p10": 922.340426,
+          "median": 922.340426,
+          "p90": 922.340426,
+          "max": 922.340426
+        },
+        "actions": {
+          "count": 1,
+          "mean": 468,
+          "min": 468,
+          "p10": 468,
+          "median": 468,
+          "p90": 468,
+          "max": 468
+        },
+        "deltaMinute": {
+          "count": 1,
+          "mean": 621.276596,
+          "min": 621.276596,
+          "p10": 621.276596,
+          "median": 621.276596,
+          "p90": 621.276596,
+          "max": 621.276596
+        }
+      }
+    ],
+    "resources": [
+      {
+        "id": "lingli",
+        "final": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "produced": {
+          "count": 1,
+          "mean": 86700,
+          "min": 86700,
+          "p10": 86700,
+          "median": 86700,
+          "p90": 86700,
+          "max": 86700
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 86700,
+          "min": 86700,
+          "p10": 86700,
+          "median": 86700,
+          "p90": 86700,
+          "max": 86700
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 86700
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "node:era_4",
+            "mean": 50000
+          },
+          {
+            "sink": "node:era_3",
+            "mean": 20000
+          },
+          {
+            "sink": "action:craft_foundation_pill",
+            "mean": 8550
+          },
+          {
+            "sink": "node:era_2",
+            "mean": 5000
+          },
+          {
+            "sink": "action:craft_stone_mid",
+            "mean": 2650
+          },
+          {
+            "sink": "action:craft_talisman",
+            "mean": 500
+          }
+        ],
+        "netPerHour": 0
+      },
+      {
+        "id": "money",
+        "final": {
+          "count": 1,
+          "mean": 10000,
+          "min": 10000,
+          "p10": 10000,
+          "median": 10000,
+          "p90": 10000,
+          "max": 10000
+        },
+        "produced": {
+          "count": 1,
+          "mean": 16000,
+          "min": 16000,
+          "p10": 16000,
+          "median": 16000,
+          "p90": 16000,
+          "max": 16000
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 6000,
+          "min": 6000,
+          "p10": 6000,
+          "median": 6000,
+          "p90": 6000,
+          "max": 6000
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 72544.680851,
+          "min": 72544.680851,
+          "p10": 72544.680851,
+          "median": 72544.680851,
+          "p90": 72544.680851,
+          "max": 72544.680851
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 16000
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "node:era_3",
+            "mean": 5000
+          },
+          {
+            "sink": "node:era_2",
+            "mean": 1000
+          }
+        ],
+        "netPerHour": 650.519031
+      },
+      {
+        "id": "wood",
+        "final": {
+          "count": 1,
+          "mean": 1000,
+          "min": 1000,
+          "p10": 1000,
+          "median": 1000,
+          "p90": 1000,
+          "max": 1000
+        },
+        "produced": {
+          "count": 1,
+          "mean": 1100,
+          "min": 1100,
+          "p10": 1100,
+          "median": 1100,
+          "p90": 1100,
+          "max": 1100
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 100,
+          "min": 100,
+          "p10": 100,
+          "median": 100,
+          "p90": 100,
+          "max": 100
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 21036.170213,
+          "min": 21036.170213,
+          "p10": 21036.170213,
+          "median": 21036.170213,
+          "p90": 21036.170213,
+          "max": 21036.170213
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 1100
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:craft_talisman",
+            "mean": 100
+          }
+        ],
+        "netPerHour": 65.051903
+      },
+      {
+        "id": "stone_low",
+        "final": {
+          "count": 1,
+          "mean": 20000,
+          "min": 20000,
+          "p10": 20000,
+          "median": 20000,
+          "p90": 20000,
+          "max": 20000
+        },
+        "produced": {
+          "count": 1,
+          "mean": 21875,
+          "min": 21875,
+          "p10": 21875,
+          "median": 21875,
+          "p90": 21875,
+          "max": 21875
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 1875,
+          "min": 1875,
+          "p10": 1875,
+          "median": 1875,
+          "p90": 1875,
+          "max": 1875
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 261.170213,
+          "min": 261.170213,
+          "p10": 261.170213,
+          "median": 261.170213,
+          "p90": 261.170213,
+          "max": 261.170213
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 21875
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:craft_stone_mid",
+            "mean": 1325
+          },
+          {
+            "sink": "node:era_2",
+            "mean": 500
+          },
+          {
+            "sink": "action:craft_talisman",
+            "mean": 50
+          }
+        ],
+        "netPerHour": 1301.038062
+      },
+      {
+        "id": "skill_point",
+        "final": {
+          "count": 1,
+          "mean": 79340.425532,
+          "min": 79340.425532,
+          "p10": 79340.425532,
+          "median": 79340.425532,
+          "p90": 79340.425532,
+          "max": 79340.425532
+        },
+        "produced": {
+          "count": 1,
+          "mean": 221040.425532,
+          "min": 221040.425532,
+          "p10": 221040.425532,
+          "median": 221040.425532,
+          "p90": 221040.425532,
+          "max": 221040.425532
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 141700,
+          "min": 141700,
+          "p10": 141700,
+          "median": 141700,
+          "p90": 141700,
+          "max": 141700
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 443044.680851,
+          "min": 443044.680851,
+          "p10": 443044.680851,
+          "median": 443044.680851,
+          "p90": 443044.680851,
+          "max": 443044.680851
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 221040.425532
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:learn_nascent_soul_incubation",
+            "mean": 85000
+          },
+          {
+            "sink": "action:learn_golden_core_formation",
+            "mean": 38250
+          },
+          {
+            "sink": "action:learn_foundation_building",
+            "mean": 18000
+          },
+          {
+            "sink": "action:learn_basic_meditation",
+            "mean": 450
+          }
+        ],
+        "netPerHour": 5161.245675
+      },
+      {
+        "id": "spirit_grass_low",
+        "final": {
+          "count": 1,
+          "mean": 500,
+          "min": 500,
+          "p10": 500,
+          "median": 500,
+          "p90": 500,
+          "max": 500
+        },
+        "produced": {
+          "count": 1,
+          "mean": 1013,
+          "min": 1013,
+          "p10": 1013,
+          "median": 1013,
+          "p90": 1013,
+          "max": 1013
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 513,
+          "min": 513,
+          "p10": 513,
+          "median": 513,
+          "p90": 513,
+          "max": 513
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 5074.446809,
+          "min": 5074.446809,
+          "p10": 5074.446809,
+          "median": 5074.446809,
+          "p90": 5074.446809,
+          "max": 5074.446809
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 1013
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:craft_foundation_pill",
+            "mean": 513
+          }
+        ],
+        "netPerHour": 32.525952
+      },
+      {
+        "id": "spirit_grass_100y",
+        "final": {
+          "count": 1,
+          "mean": 100,
+          "min": 100,
+          "p10": 100,
+          "median": 100,
+          "p90": 100,
+          "max": 100
+        },
+        "produced": {
+          "count": 1,
+          "mean": 106,
+          "min": 106,
+          "p10": 106,
+          "median": 106,
+          "p90": 106,
+          "max": 106
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 6,
+          "min": 6,
+          "p10": 6,
+          "median": 6,
+          "p90": 6,
+          "max": 6
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 1000.808511,
+          "min": 1000.808511,
+          "p10": 1000.808511,
+          "median": 1000.808511,
+          "p90": 1000.808511,
+          "max": 1000.808511
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 106
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:craft_golden_core_pill",
+            "mean": 6
+          }
+        ],
+        "netPerHour": 6.50519
+      },
+      {
+        "id": "stone_mid",
+        "final": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "produced": {
+          "count": 1,
+          "mean": 265,
+          "min": 265,
+          "p10": 265,
+          "median": 265,
+          "p90": 265,
+          "max": 265
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 265,
+          "min": 265,
+          "p10": 265,
+          "median": 265,
+          "p90": 265,
+          "max": 265
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:craft_stone_mid",
+            "mean": 265
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "node:era_4",
+            "mean": 200
+          },
+          {
+            "sink": "node:era_3",
+            "mean": 50
+          },
+          {
+            "sink": "action:craft_golden_core_pill",
+            "mean": 15
+          }
+        ],
+        "netPerHour": 0
+      },
+      {
+        "id": "talisman",
+        "final": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "produced": {
+          "count": 1,
+          "mean": 10,
+          "min": 10,
+          "p10": 10,
+          "median": 10,
+          "p90": 10,
+          "max": 10
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 10,
+          "min": 10,
+          "p10": 10,
+          "median": 10,
+          "p90": 10,
+          "max": 10
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:craft_talisman",
+            "mean": 10
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "node:era_3",
+            "mean": 10
+          }
+        ],
+        "netPerHour": 0
+      },
+      {
+        "id": "foundation_pill",
+        "final": {
+          "count": 1,
+          "mean": 100,
+          "min": 100,
+          "p10": 100,
+          "median": 100,
+          "p90": 100,
+          "max": 100
+        },
+        "produced": {
+          "count": 1,
+          "mean": 109,
+          "min": 109,
+          "p10": 109,
+          "median": 109,
+          "p90": 109,
+          "max": 109
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 9,
+          "min": 9,
+          "p10": 9,
+          "median": 9,
+          "p90": 9,
+          "max": 9
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 62,
+          "min": 62,
+          "p10": 62,
+          "median": 62,
+          "p90": 62,
+          "max": 62
+        },
+        "topSources": [
+          {
+            "source": "action:craft_foundation_pill",
+            "mean": 109
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "action:craft_golden_core_pill",
+            "mean": 9
+          }
+        ],
+        "netPerHour": 6.50519
+      },
+      {
+        "id": "golden_core_pill",
+        "final": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "produced": {
+          "count": 1,
+          "mean": 3,
+          "min": 3,
+          "p10": 3,
+          "median": 3,
+          "p90": 3,
+          "max": 3
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 3,
+          "min": 3,
+          "p10": 3,
+          "median": 3,
+          "p90": 3,
+          "max": 3
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:craft_golden_core_pill",
+            "mean": 3
+          }
+        ],
+        "topSinks": [
+          {
+            "sink": "node:era_4",
+            "mean": 3
+          }
+        ],
+        "netPerHour": 0
+      },
+      {
+        "id": "training",
+        "final": {
+          "count": 1,
+          "mean": 922.340426,
+          "min": 922.340426,
+          "p10": 922.340426,
+          "median": 922.340426,
+          "p90": 922.340426,
+          "max": 922.340426
+        },
+        "produced": {
+          "count": 1,
+          "mean": 922.340426,
+          "min": 922.340426,
+          "p10": 922.340426,
+          "median": 922.340426,
+          "p90": 922.340426,
+          "max": 922.340426
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "regen",
+            "mean": 922.340426
+          }
+        ],
+        "topSinks": [],
+        "netPerHour": 60
+      },
+      {
+        "id": "skill_basic_meditation",
+        "final": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "produced": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:learn_basic_meditation",
+            "mean": 5
+          }
+        ],
+        "topSinks": [],
+        "netPerHour": 0.32526
+      },
+      {
+        "id": "skill_foundation_building",
+        "final": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "produced": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:learn_foundation_building",
+            "mean": 5
+          }
+        ],
+        "topSinks": [],
+        "netPerHour": 0.32526
+      },
+      {
+        "id": "skill_golden_core_formation",
+        "final": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "produced": {
+          "count": 1,
+          "mean": 5,
+          "min": 5,
+          "p10": 5,
+          "median": 5,
+          "p90": 5,
+          "max": 5
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:learn_golden_core_formation",
+            "mean": 5
+          }
+        ],
+        "topSinks": [],
+        "netPerHour": 0.32526
+      },
+      {
+        "id": "skill_nascent_soul_incubation",
+        "final": {
+          "count": 1,
+          "mean": 4,
+          "min": 4,
+          "p10": 4,
+          "median": 4,
+          "p90": 4,
+          "max": 4
+        },
+        "produced": {
+          "count": 1,
+          "mean": 4,
+          "min": 4,
+          "p10": 4,
+          "median": 4,
+          "p90": 4,
+          "max": 4
+        },
+        "consumed": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "overflow": {
+          "count": 1,
+          "mean": 0,
+          "min": 0,
+          "p10": 0,
+          "median": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "topSources": [
+          {
+            "source": "action:learn_nascent_soul_incubation",
+            "mean": 4
+          }
+        ],
+        "topSinks": [],
+        "netPerHour": 0.260208
+      }
+    ],
+    "actionUsage": [
+      {
+        "id": "learn_basic_meditation",
+        "mean": 5
+      },
+      {
+        "id": "learn_foundation_building",
+        "mean": 5
+      },
+      {
+        "id": "learn_golden_core_formation",
+        "mean": 5
+      },
+      {
+        "id": "learn_nascent_soul_incubation",
+        "mean": 4
+      },
+      {
+        "id": "craft_foundation_pill",
+        "mean": 171
+      },
+      {
+        "id": "craft_stone_mid",
+        "mean": 265
+      },
+      {
+        "id": "craft_golden_core_pill",
+        "mean": 3
+      },
+      {
+        "id": "craft_talisman",
+        "mean": 10
+      }
+    ],
+    "stuck": null,
+    "stalls": []
+  }
+}

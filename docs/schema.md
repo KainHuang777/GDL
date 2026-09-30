@@ -25,6 +25,9 @@
 | `initial` | number ≥ 0 | 預設 0，不可超過 `max` |
 | `max` | number | 上限；超出部分計入 overflow |
 | `regenPerMinute` | number ≥ 0 | 每遊戲內分鐘連續回復（如體力） |
+| `kind` | `"currency"`（預設）/ `"counter"` / `"crafted"` | 資源性質，供報告規則去噪：`counter` = 計數器（訓練時數、技能等級），`crafted` = 由動作製作的成品 |
+
+`unsupported[]` 的每一項可含 `affects: string[]`（資源 id）：標示因該未建模功能而數值不可靠的資源，相關發現會附 `caveats`。
 
 **時間不是資源。** 時間只由 `Action.durationMinutes` 表達；若資源 id 看起來像時間（`time_minutes` 等），會出現 `TIME_AS_RESOURCE` 警告。
 
@@ -73,6 +76,15 @@
 - **expected 模式**：每個機率結果以期望值結算（`amount × probability`，區間取中點，表取加權平均）。快速、可做回歸比較，但**不是**分布。
 - **monte-carlo 模式**：mulberry32 RNG，每個 run 的 seed 由主 seed 衍生，可完整重現。
 - **priority policy**：每步執行清單中第一個可用的 action；沒有可用 action 時，若有回復中的資源會等待到最早可用時刻，否則判定 `stuck` 並記錄 blocker。
+- **adaptive policy**（離線、確定性、不使用 LLM）：每步在「合法 action」（條件與成本滿足、剩餘時間足夠）中，依當下狀態打分並選最高者。
+  - 欄位：`actions?`（候選池與同分順序；省略 = 全部 action）、`objective?`（目前僅 `"progress-rate"`）、
+    `temperature?`（≥ 0，預設 0）、`lookaheadMinutes?`（≥ 0，預設 120）。
+  - 分數 = 朝下一個進度節點的推進量（已達節點數 + 下一節點資源需求〔gte 門檻與 costs〕的平均完成度）除以耗時。
+  - `lookaheadMinutes > 0`：候選先執行，之後以 expected 值貪婪模擬至多 N 分鐘，比較這段時間的推進速率，因此「買工具」這類投資可被選中；
+    `0` = 純單步貪婪，永不投資。
+  - `temperature = 0`：取最高分（同分依池順序），完全確定。`> 0` 且為 monte-carlo：以 softmax 抽樣，權重 `exp((score − best) / (|best| × temperature))`；expected 模式忽略此欄。
+  - 它是決策假設，不是玩家真實行為；報告的 `policy.type` / `policy.adaptive` 會記錄實際參數。
+  - 注意：每步需分叉狀態做前瞻，速度比 priority 慢（godtower 24h 約 1.5 秒 expected、數秒 / 20 runs monte-carlo）。
 - **停止原因**：`completed`（抵達最後節點）、`time_limit`、`action_limit`、`stuck`。
 
 ## 驗證碼

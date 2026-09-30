@@ -1,0 +1,5 @@
+{
+  "id": "lingli-regen-plus-50",
+  "description": "靈力再生 +50%（模擬更強茅屋/聚靈陣）",
+  "changes": [{ "target": "resources[id=lingli].regenPerMinute", "op": "multiply", "value": 1.5 }]
+}

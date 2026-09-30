@@ -26,10 +26,10 @@ type Obj = Record<string, unknown>;
 const KNOWN_KEYS: Record<string, string[]> = {
   root: ["schemaVersion", "project", "resources", "actions", "progression", "policies", "unsupported", "meta"],
   project: ["id", "name", "genre"],
-  resource: ["id", "name", "unit", "initial", "max", "regenPerMinute", "source"],
+  resource: ["id", "name", "kind", "unit", "initial", "max", "regenPerMinute", "source"],
   action: ["id", "name", "durationMinutes", "costs", "requires", "outcomes", "maxUses", "source"],
   node: ["id", "name", "order", "requirements", "costs", "source"],
-  policy: ["id", "type", "description", "actions"],
+  policy: ["id", "type", "description", "actions", "objective", "temperature", "lookaheadMinutes"],
 };
 
 /**
@@ -110,6 +110,11 @@ class Validator {
     unsupported.forEach((u, i) => {
       if (!isObj(u) || !isNonEmptyString(u.feature) || !isNonEmptyString(u.reason)) {
         this.err("INVALID_FIELD", `unsupported[${i}]`, "unsupported entries need non-empty 'feature' and 'reason' strings.");
+        return;
+      }
+      if (u.affects !== undefined) {
+        if (!Array.isArray(u.affects)) this.err("INVALID_TYPE", `unsupported[${i}].affects`, "affects must be an array of resource ids.");
+        else u.affects.forEach((id, j) => this.resourceRef(id, `unsupported[${i}].affects[${j}]`));
       }
     });
 
@@ -176,6 +181,9 @@ class Validator {
     this.unknownKeys(r, "resource", p);
     this.optNonNegative(r, "initial", p);
     this.optNonNegative(r, "regenPerMinute", p);
+    if (r.kind !== undefined && r.kind !== "currency" && r.kind !== "counter" && r.kind !== "crafted") {
+      this.err("INVALID_FIELD", `${p}.kind`, `Unknown resource kind "${String(r.kind)}".`, 'Use "currency", "counter" or "crafted".');
+    }
     if (r.max !== undefined) {
       if (!isFiniteNum(r.max) || r.max <= 0) this.err("INVALID_NUMBER", `${p}.max`, "max must be a positive number.");
       else if (isFiniteNum(r.initial) && r.initial > r.max) this.err("INITIAL_EXCEEDS_MAX", `${p}.initial`, `initial (${r.initial}) exceeds max (${r.max}).`);
@@ -332,7 +340,18 @@ class Validator {
     if (!isObj(pol)) return this.err("INVALID_TYPE", p, "Policy must be an object.");
     this.unknownKeys(pol, "policy", p);
     if (!isNonEmptyString(pol.id)) this.err("MISSING_FIELD", `${p}.id`, "Policy id is required.");
-    if (pol.type !== "priority") this.err("INVALID_TYPE", `${p}.type`, `Unknown policy type "${String(pol.type)}".`, 'v0.1 supports only "priority".');
+    if (pol.type !== "priority" && pol.type !== "adaptive") {
+      this.err("INVALID_TYPE", `${p}.type`, `Unknown policy type "${String(pol.type)}".`, 'Supported types: "priority", "adaptive".');
+    }
+    const adaptive = pol.type === "adaptive";
+    if (adaptive) {
+      if (pol.objective !== undefined && pol.objective !== "progress-rate") {
+        this.err("INVALID_FIELD", `${p}.objective`, `Unknown objective "${String(pol.objective)}".`, 'v0.1 supports only "progress-rate".');
+      }
+      this.optNonNegative(pol, "temperature", p);
+      this.optNonNegative(pol, "lookaheadMinutes", p);
+      if (pol.actions === undefined) return;
+    }
     if (!Array.isArray(pol.actions) || pol.actions.length === 0) return this.err("MISSING_FIELD", `${p}.actions`, "Policy needs a non-empty 'actions' array.");
     pol.actions.forEach((a: unknown, i: number) => {
       if (!isNonEmptyString(a) || !this.actionIds.has(a)) this.err("REF_NOT_FOUND", `${p}.actions[${i}]`, `Action "${String(a)}" does not exist.`, hintFrom(this.actionIds, a));
