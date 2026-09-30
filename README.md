@@ -3,6 +3,7 @@
 本機優先、可由 Adapter 接入不同遊戲、並以**可重現模擬**驗證設計假設的 Game Design SDK。
 核心數值結果全部由程式引擎產生；v0.1 不含任何 LLM 功能。
 
+> 原始碼：<https://github.com/KainHuang777/GDL>
 > 設計草案的審查結論與調整項目見 [docs/design-review.md](docs/design-review.md)。
 
 ## 快速開始
