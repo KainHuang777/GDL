@@ -1,4 +1,5 @@
 import type { GameModel } from "../schema/types.js";
+import type { InsightRule } from "../insights/insights.js";
 
 /**
  * Adapter API v0.1.
@@ -13,6 +14,12 @@ export interface GdlAdapter {
   /** Adapter API version this adapter targets. Currently "0.1". */
   apiVersion?: string;
   load(ctx: AdapterContext): Promise<GameModel> | GameModel;
+  /**
+   * Optional project-specific insight rules, evaluated after the built-in rules whenever
+   * insights are built for a report of this project (simulate/compare --save, inspect, report).
+   * Rules must be pure and deterministic; a throwing rule becomes a "rule-error" finding.
+   */
+  insightRules?: InsightRule[];
 }
 
 export interface AdapterContext {

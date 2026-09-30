@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,6 +10,8 @@ import { buildInsights } from "../src/insights/insights.js";
 import { renderHtml } from "../src/report/html.js";
 import { main } from "../src/cli/index.js";
 import { validateModel } from "../src/schema/validate.js";
+import { readReport } from "../src/report/io.js";
+import { buildTrend } from "../src/report/trend.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ex = (p: string) => path.join(root, "examples", p);
@@ -141,4 +143,161 @@ test("round-2: resource kind and unsupported.affects are validated", () => {
   const good = structuredClone(base);
   good.resources[0].kind = "counter";
   assert.equal(validateModel(good).ok, true);
+});
+test("insights: threshold overrides change findings and are validated", async () => {
+  const r = await simulateProject(ex("dao2-mock"), { mode: "monte-carlo", runs: 200, seed: 1, limits });
+  assert.ok(buildInsights(r).findings.some((f) => f.id === "stall"));
+  const relaxed = buildInsights(r, "en", { thresholds: { stallShare: 1.5 } });
+  assert.ok(!relaxed.findings.some((f) => f.id === "stall"), "stall should be suppressed");
+  assert.deepEqual(relaxed.thresholdOverrides, { stallShare: 1.5 });
+  assert.throws(() => buildInsights(r, "en", { thresholds: { nope: 1 } as never }), /unknown threshold/);
+  assert.throws(() => buildInsights(r, "en", { thresholds: { stallShare: -1 } }), />= 0/);
+});
+
+function customProject(extraConfig: Record<string, unknown> = {}, rules = ""): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "gdl-custom-"));
+  mkdirSync(path.join(dir, ".gdl"), { recursive: true });
+  writeFileSync(path.join(dir, "model.json"), readFileSync(ex("minimal-idle-game/model.json")));
+  writeFileSync(path.join(dir, ".gdl/config.json"), JSON.stringify({ projectId: "custom", adapter: "./adapter.mjs", ...extraConfig }));
+  writeFileSync(
+    path.join(dir, ".gdl/adapter.mjs"),
+    `export default { id: "custom", version: "1.0.0", load: (ctx) => ctx.readJson("model.json"), insightRules: [${rules}] };\n`,
+  );
+  return dir;
+}
+
+test("insights: adapter rules add findings via CLI; failing rules become rule-error; config thresholds apply", async () => {
+  const rules = `
+    { id: "always", evaluate: (ctx) => [{ id: "custom-note", severity: "info", category: "data", scope: "", title: "hello " + ctx.report.kind, detail: "runs=" + ctx.sim.runs }] },
+    { id: "boom", evaluate: () => { throw new Error("kaput"); } }`;
+  const dir = customProject({ insights: { thresholds: { stallShare: 0.5 } } }, rules);
+  const out = path.join(dir, "r.json");
+  assert.equal(await silence(() => main(["simulate", dir, "--runs", "20", "--out", out, "--format", "json"])), 0);
+  const report = JSON.parse(readFileSync(out, "utf8"));
+  const insOut = path.join(dir, "ins.json");
+  const w = process.stdout.write;
+  let buf = "";
+  process.stdout.write = ((s: string) => ((buf += s), true)) as typeof process.stdout.write;
+  try {
+    assert.equal(await main(["inspect", out, "--format", "json", "--threshold", "spikeFactor=9"]), 0);
+  } finally {
+    process.stdout.write = w;
+  }
+  void insOut;
+  const ins = JSON.parse(buf);
+  const note = ins.findings.find((f: { id: string }) => f.id === "custom-note");
+  assert.ok(note && note.rule === "always" && note.scope === "simulation" && note.title === "hello simulate", JSON.stringify(ins.findings));
+  const err = ins.findings.find((f: { id: string }) => f.id === "rule-error");
+  assert.ok(err && err.rule === "boom" && /kaput/.test(err.detail));
+  assert.deepEqual(ins.thresholdOverrides, { stallShare: 0.5, spikeFactor: 9 });
+  assert.equal(report.kind, "simulate");
+});
+
+test("insights: bad config thresholds and --threshold values are rejected", async () => {
+  const bad = customProject({ insights: { thresholds: { bogus: 1 } } });
+  assert.equal(await silence(() => main(["simulate", bad, "--runs", "5"])), 2);
+  const ok = customProject();
+  const out = path.join(ok, "r.json");
+  assert.equal(await silence(() => main(["simulate", ok, "--runs", "5", "--out", out])), 0);
+  assert.equal(await silence(() => main(["inspect", out, "--threshold", "stallShare"])), 2);
+  assert.equal(await silence(() => main(["inspect", out, "--threshold", "nope=1"])), 2);
+});
+
+test("insights: histograms and timeline appear only with --keep-runs / --trace and render in html", async () => {
+  const plain = await simulateProject(ex("dao2-mock"), { mode: "monte-carlo", runs: 50, seed: 1, limits });
+  const p = buildInsights(plain);
+  assert.equal(p.histograms, undefined);
+  assert.equal(p.timeline, undefined);
+  assert.ok(!renderHtml(plain, p).includes('id="distributions"'));
+
+  const r = await simulateProject(ex("dao2-mock"), { mode: "monte-carlo", runs: 50, seed: 1, limits, keepRuns: true, trace: true });
+  const ins = buildInsights(r);
+  assert.ok(ins.histograms && ins.histograms.length > 0);
+  for (const h of ins.histograms!) {
+    assert.equal(h.bins.reduce((a, b) => a + b, 0), h.count);
+    assert.equal(h.count + h.missing, 50);
+    assert.ok(h.min <= h.median && h.median <= h.max);
+  }
+  const tl = ins.timeline!;
+  assert.ok(tl.horizon > 0 && tl.series.length > 0 && tl.waitingShare >= 0 && tl.waitingShare <= 1);
+  assert.ok(tl.waits.every((w) => w.end > w.start));
+  const html = renderHtml(r, ins);
+  assert.ok(html.includes('id="distributions"') && html.includes('id="timeline"'));
+  const zh = renderHtml(r, buildInsights(r, "zh-TW"), { lang: "zh-TW" });
+  assert.ok(zh.includes("到達時間分佈") && zh.includes("時間軸"));
+  assert.deepEqual(buildInsights(r), ins);
+});
+
+test("trend: groups comparable reports, marks model changes, renders html", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "gdl-trend-"));
+  const a = path.join(dir, "a.json"), b = path.join(dir, "b.json"), c = path.join(dir, "c.json"), v = path.join(dir, "v.json");
+  const sc = path.join(dir, "sc.json");
+  writeFileSync(sc, readFileSync(ex("dao2-mock/scenarios/realm-stone-plus-50.json")));
+  assert.equal(await silence(() => main(["simulate", ex("dao2-mock"), "--runs", "30", "--out", a, "--format", "json"])), 0);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(await silence(() => main(["simulate", ex("dao2-mock"), "--runs", "30", "--seed", "2", "--out", b, "--format", "json"])), 0);
+  // Same project but a different (tweaked) model: change a value so modelSha256 differs.
+  const tweaked = JSON.parse(readFileSync(ex("minimal-idle-game/model.json"), "utf8"));
+  const mp = path.join(dir, "model.json");
+  writeFileSync(mp, JSON.stringify(tweaked));
+  assert.equal(await silence(() => main(["simulate", mp, "--runs", "30", "--out", c, "--format", "json"])), 0);
+  assert.equal(await silence(() => main(["validate", ex("dao2-mock"), "--out", v, "--format", "json"])), 0);
+
+  const trend = buildTrend(await Promise.all([a, b, c, v].map(async (f) => {
+    const report = await readReport(f);
+    return { file: f, report, insights: buildInsights(report) };
+  })));
+  assert.equal(trend.groups.length, 2, JSON.stringify(trend.groups.map((g) => g.key)));
+  assert.equal(trend.skipped.length, 1);
+  const g = trend.groups.find((x) => x.project.includes("dao") || x.entries.length === 2)!;
+  assert.equal(g.entries.length, 2);
+  assert.ok(g.entries[0]!.generatedAt <= g.entries[1]!.generatedAt);
+  assert.equal(g.entries[1]!.modelChanged, false);
+  assert.ok(g.nodeDeltas.length > 0);
+
+  const out = path.join(dir, "trend.html");
+  assert.equal(await silence(() => main(["report", a, b, "--out", out, "--lang", "zh-TW"])), 0);
+  const html = readFileSync(out, "utf8");
+  assert.ok(html.includes('id="gdl-trend"') && html.includes("<svg") && html.includes("趨勢"));
+  assert.ok(!/<script(?![^>]*application\/json)/.test(html), "no executable script");
+
+  let buf = "";
+  const w = process.stdout.write;
+  process.stdout.write = ((s: string) => ((buf += s), true)) as typeof process.stdout.write;
+  try { assert.equal(await main(["inspect", a, b]), 0); } finally { process.stdout.write = w; }
+  assert.match(buf, /first -> last median arrival/);
+  assert.equal(await silence(() => main(["inspect", a, b, "--focus", "economy"])), 2);
+  assert.equal(await silence(() => main(["report", v, v, "--out", out])), 2);
+  void sc;
+});
+
+test("index: --save refreshes <outputDir>/index.html; gdl index lists reports, skips junk", async () => {
+  const dir = customProject({}, "");
+  assert.equal(await silence(() => main(["simulate", dir, "--runs", "10", "--save"])), 0);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(await silence(() => main(["simulate", dir, "--runs", "10", "--seed", "3", "--save"])), 0);
+  const rdir = path.join(dir, ".gdl", "reports");
+  const idx = path.join(rdir, "index.html");
+  assert.ok(existsSync(idx));
+  let html = readFileSync(idx, "utf8");
+  assert.equal((html.match(/href="[^"]+\.json"/g) ?? []).length, 2, html.slice(0, 500));
+  assert.equal((html.match(/href="[^"]+-simulate\.html"/g) ?? []).length, 2);
+  assert.ok(html.includes('id="gdl-index"'));
+  assert.ok(!/<script(?![^>]*application\/json)/.test(html), "no executable script");
+
+  writeFileSync(path.join(rdir, "junk.json"), "{not json");
+  assert.equal(await silence(() => main(["index", dir, "--lang", "zh-TW"])), 0);
+  html = readFileSync(idx, "utf8");
+  assert.ok(html.includes("junk.json"));
+  const emb = /<script type="application\/json" id="gdl-index">([\s\S]*?)<\/script>/.exec(html)!;
+  const data = JSON.parse(emb[1]!);
+  assert.equal(data.entries.length, 2);
+  assert.equal(data.skipped.length, 1);
+  assert.ok(data.entries[0]!.generatedAt >= data.entries[1]!.generatedAt);
+
+  const custom = path.join(dir, "custom-index.html");
+  assert.equal(await silence(() => main(["index", rdir, "--out", custom])), 0);
+  assert.ok(existsSync(custom));
+  assert.equal(await silence(() => main(["index", path.join(dir, "nope")])), 2);
+  assert.equal(await silence(() => main(["index", path.join(dir, ".gdl", "config.json")])), 2);
 });

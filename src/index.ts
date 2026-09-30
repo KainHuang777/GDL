@@ -147,6 +147,8 @@ function delta(a: number | null, b: number | null): Delta {
 
 export { loadProject } from "./adapter/loader.js";
 export { defineAdapter } from "./adapter/api.js";
+export { buildInsights, resolveThresholds, THRESHOLDS } from "./insights/insights.js";
+export type { InsightRule, RuleContext, Finding, Thresholds, Insights } from "./insights/insights.js";
 export type { GdlAdapter, AdapterContext } from "./adapter/api.js";
 export { validateModel } from "./schema/validate.js";
 export { runSimulation } from "./core/runner.js";

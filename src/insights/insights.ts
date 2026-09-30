@@ -27,6 +27,8 @@ export interface Finding {
   detail: string;
   /** Unmodelled features (`unsupported[].feature`) that make the numbers behind this finding unreliable. */
   caveats?: string[];
+  /** Id of the adapter-provided rule that produced this finding (absent for built-in rules). */
+  rule?: string;
 }
 
 export interface Segment {
@@ -99,6 +101,32 @@ export interface ScenarioView {
   resourceImpact: { id: string; delta: Delta }[];
 }
 
+/** Distribution of one node's arrival minute over all kept runs (needs --keep-runs). */
+export interface Histogram {
+  id: string;
+  /** Runs that reached the node. */
+  count: number;
+  /** Runs that did not reach it. */
+  missing: number;
+  min: number;
+  max: number;
+  /** Equal-width bins over [min, max]; a single value gets one bin. */
+  bins: number[];
+  median: number;
+}
+
+/** Condensed event trace of the first run (needs --trace). */
+export interface TimelineView {
+  horizon: number;
+  nodes: { id: string; t: number }[];
+  /** Merged waiting spans. */
+  waits: { start: number; end: number }[];
+  waitingShare: number;
+  /** Action count per equal-width time bucket; `series` holds the busiest actions, the rest fall into "other". */
+  bucketMinutes: number;
+  series: { id: string; total: number; counts: number[] }[];
+}
+
 export interface Insights {
   kind: AnyReport["kind"];
   findings: Finding[];
@@ -107,6 +135,10 @@ export interface Insights {
   actionUsage?: { id: string; mean: number }[];
   waste?: WasteStat[];
   scenarios?: ScenarioView[];
+  histograms?: Histogram[];
+  timeline?: TimelineView;
+  /** Threshold overrides applied on top of the defaults (absent when none). */
+  thresholdOverrides?: Partial<Thresholds>;
 }
 
 /** Initial thresholds; tune with real project feedback. */
@@ -130,6 +162,48 @@ export const THRESHOLDS = {
   wasteSpendShare: 0.05,
 };
 
+export type Thresholds = typeof THRESHOLDS;
+
+/** Merge validated overrides over the defaults. Throws Error on unknown keys / non-finite numbers. */
+export function resolveThresholds(overrides?: Partial<Thresholds>): Thresholds {
+  const out: Thresholds = { ...THRESHOLDS };
+  for (const [k, v] of Object.entries(overrides ?? {})) {
+    if (!(k in THRESHOLDS)) throw new Error(`unknown threshold "${k}" (known: ${Object.keys(THRESHOLDS).join(", ")})`);
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) throw new Error(`threshold "${k}" must be a finite number >= 0`);
+    out[k as keyof Thresholds] = v;
+  }
+  return out;
+}
+
+/** Read-only view handed to adapter-provided rules. */
+export interface RuleContext {
+  report: AnyReport;
+  lang: InsightLang;
+  thresholds: Thresholds;
+  /** "simulation" | "baseline" (undefined for validate reports). */
+  scope?: string;
+  /** Primary simulation (compare: the baseline). */
+  sim?: SimulationResult;
+  pacing?: PacingView;
+  economy?: EconomyRow[];
+  /** Built-in findings, already computed (read-only intent; do not mutate). */
+  findings: readonly Finding[];
+}
+
+/**
+ * Adapter-provided insight rule. Must be pure and deterministic: same report => same findings.
+ * `scope` defaults to the primary scope; `category` must be a known Category.
+ */
+export interface InsightRule {
+  id: string;
+  evaluate(ctx: RuleContext): Finding[] | void;
+}
+
+export interface BuildInsightsOptions {
+  thresholds?: Partial<Thresholds>;
+  rules?: InsightRule[];
+}
+
 const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
 
 // ---------------------------------------------------------------- i18n
@@ -138,6 +212,7 @@ const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, warning: 1, info
 interface Msgs {
   invalidTitle: string;
   validationWarningsTitle: string;
+  ruleErrorTitle: string;
   unreachableTitle: string;
   unreachableFallback: string;
   stuckTitle: string;
@@ -201,6 +276,7 @@ interface Msgs {
 const EN: Msgs = {
   invalidTitle: "Model is invalid ({n} error(s)); nothing was simulated",
   validationWarningsTitle: "{n} validation warning(s)",
+  ruleErrorTitle: "Custom rule \"{id}\" failed",
   unreachableTitle: "{target} is unreachable by design",
   unreachableFallback: "static reachability found no way to satisfy it",
   stuckTitle: "Stuck in {c}/{r} run(s): no affordable action and nothing regenerates",
@@ -264,6 +340,7 @@ const EN: Msgs = {
 const ZH: Msgs = {
   invalidTitle: "模型無效（{n} 個錯誤）；未進行任何模擬",
   validationWarningsTitle: "{n} 個驗證警告",
+  ruleErrorTitle: "自訂規則「{id}」執行失敗",
   unreachableTitle: "「{target}」在設計上無法達成",
   unreachableFallback: "靜態可達性分析找不到能滿足它的路徑",
   stuckTitle: "{c}/{r} 場執行卡死：沒有可負擔的動作，且沒有資源會再生",
@@ -376,11 +453,13 @@ function withCaveats(f: Finding, caveats: string[] | undefined): Finding {
   return f;
 }
 
-export function buildInsights(report: AnyReport, lang: InsightLang = "en"): Insights {
+export function buildInsights(report: AnyReport, lang: InsightLang = "en", opts: BuildInsightsOptions = {}): Insights {
+  const T = resolveThresholds(opts.thresholds);
   const m = msgs(lang);
   const names = namesOf(report);
   const findings: Finding[] = [];
   const ins: Insights = { kind: report.kind, findings };
+  if (opts.thresholds && Object.keys(opts.thresholds).length) ins.thresholdOverrides = { ...opts.thresholds };
 
   if (!report.validation.ok) {
     findings.push({
@@ -423,18 +502,118 @@ export function buildInsights(report: AnyReport, lang: InsightLang = "en"): Insi
     ins.economy = economy(primary);
     ins.actionUsage = [...primary.actionUsage].sort((a, b) => b.mean - a.mean);
     ins.waste = primary.waste;
+    const hist = histograms(primary);
+    if (hist.length) ins.histograms = hist;
+    const tl = timeline(primary);
+    if (tl) ins.timeline = tl;
     const cav = (ids: string[]) => caveatsFor(report, ids);
-    bottleneckRules(primary, ins.pacing, scope, names, m, cav, findings);
-    economyRules(primary, ins.economy, ins.pacing, scope, names, m, cav, findings);
+    bottleneckRules(primary, ins.pacing, scope, names, m, cav, T, findings);
+    economyRules(primary, ins.economy, ins.pacing, scope, names, m, cav, T, findings);
   }
 
   if (report.kind === "compare") {
     ins.scenarios = scenarioViews(report);
-    scenarioRules(report, ins.scenarios, names, m, lang, (ids) => caveatsFor(report, ids), findings);
+    scenarioRules(report, ins.scenarios, names, m, lang, (ids) => caveatsFor(report, ids), T, findings);
   }
+
+  if (opts.rules?.length) runCustomRules(opts.rules, { report, lang, thresholds: T, ...(primary ? { scope: report.kind === "compare" ? "baseline" : "simulation", sim: primary } : {}), ...(ins.pacing ? { pacing: ins.pacing } : {}), ...(ins.economy ? { economy: ins.economy } : {}), findings }, m, findings);
 
   findings.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category));
   return ins;
+}
+
+function runCustomRules(rules: InsightRule[], ctx: RuleContext, m: Msgs, out: Finding[]) {
+  const builtins = ctx.findings.slice();
+  const frozen: RuleContext = { ...ctx, findings: builtins };
+  const defaultScope = ctx.scope ?? "model";
+  for (const rule of rules) {
+    try {
+      const got = rule.evaluate(frozen) ?? [];
+      if (!Array.isArray(got)) throw new Error("evaluate() must return an array of findings");
+      for (const f of got) {
+        const bad = badFinding(f);
+        if (bad) throw new Error(bad);
+        out.push({ ...f, scope: f.scope || defaultScope, rule: rule.id });
+      }
+    } catch (e) {
+      out.push({
+        id: "rule-error",
+        severity: "warning",
+        category: "data",
+        scope: "model",
+        title: fill(m.ruleErrorTitle, { id: rule.id }),
+        detail: (e as Error).message,
+        rule: rule.id,
+      });
+    }
+  }
+}
+
+function badFinding(f: unknown): string | null {
+  if (typeof f !== "object" || f === null) return "finding must be an object";
+  const o = f as Record<string, unknown>;
+  if (typeof o.id !== "string" || !o.id) return "finding.id must be a non-empty string";
+  if (o.severity !== "critical" && o.severity !== "warning" && o.severity !== "info") return `finding "${o.id}": severity must be critical|warning|info`;
+  if (typeof o.category !== "string" || !CATEGORIES.includes(o.category as Category)) return `finding "${o.id}": category must be one of ${CATEGORIES.join(",")}`;
+  if (typeof o.title !== "string" || typeof o.detail !== "string") return `finding "${o.id}": title and detail must be strings`;
+  return null;
+}
+
+// ---------------------------------------------------------------- distributions / timeline
+
+const HIST_BINS = 20;
+const TIMELINE_BUCKETS = 48;
+const TIMELINE_SERIES = 5;
+
+function histograms(s: SimulationResult): Histogram[] {
+  const runs = s.runResults;
+  if (!runs?.length) return [];
+  const out: Histogram[] = [];
+  for (const n of s.nodes) {
+    const xs = runs.map((r) => r.nodes[n.id]?.minute).filter((v): v is number => typeof v === "number").sort((a, b) => a - b);
+    if (!xs.length) continue;
+    const min = xs[0]!;
+    const max = xs[xs.length - 1]!;
+    const k = max > min ? HIST_BINS : 1;
+    const bins = new Array<number>(k).fill(0);
+    for (const v of xs) bins[k === 1 ? 0 : Math.min(k - 1, Math.floor(((v - min) / (max - min)) * k))]!++;
+    out.push({ id: n.id, count: xs.length, missing: runs.length - xs.length, min: round(min, 2), max: round(max, 2), bins, median: round(xs[Math.floor((xs.length - 1) / 2)]!, 2) });
+  }
+  return out;
+}
+
+function timeline(s: SimulationResult): TimelineView | undefined {
+  const ev = s.trace;
+  if (!ev?.length) return undefined;
+  const horizon = Math.max(0, ...ev.map((e) => e.t));
+  if (!(horizon > 0)) return undefined;
+  const nodes = ev.flatMap((e) => (e.kind === "node" ? [{ id: e.id, t: round(e.t, 2) }] : []));
+  const spans: { start: number; end: number }[] = [];
+  for (const e of ev) {
+    if (e.kind !== "wait") continue;
+    const start = e.t - e.minutes;
+    const last = spans[spans.length - 1];
+    if (last && start <= last.end + 1e-9) last.end = e.t;
+    else spans.push({ start, end: e.t });
+  }
+  const waited = spans.reduce((a, b) => a + (b.end - b.start), 0);
+  const bucketMinutes = horizon / TIMELINE_BUCKETS;
+  const per = new Map<string, number[]>();
+  for (const e of ev) {
+    if (e.kind !== "action") continue;
+    let c = per.get(e.id);
+    if (!c) per.set(e.id, (c = new Array<number>(TIMELINE_BUCKETS).fill(0)));
+    c[Math.min(TIMELINE_BUCKETS - 1, Math.floor(e.t / bucketMinutes))]!++;
+  }
+  const ranked = [...per.entries()].map(([id, counts]) => ({ id, counts, total: counts.reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total || a.id.localeCompare(b.id));
+  const series = ranked.slice(0, TIMELINE_SERIES);
+  const rest = ranked.slice(TIMELINE_SERIES);
+  if (rest.length) {
+    const counts = new Array<number>(TIMELINE_BUCKETS).fill(0);
+    for (const r of rest) r.counts.forEach((c, i) => (counts[i]! += c));
+    series.push({ id: "other", counts, total: counts.reduce((a, b) => a + b, 0) });
+  }
+  return { horizon: round(horizon, 2), nodes, waits: spans.map((x) => ({ start: round(x.start, 2), end: round(x.end, 2) })), waitingShare: round(waited / horizon, 4), bucketMinutes: round(bucketMinutes, 4), series };
 }
 
 // ---------------------------------------------------------------- pacing / bottleneck
@@ -490,8 +669,7 @@ export function parseLimiter(reason: string, s: SimulationResult): Limiter | nul
 
 type Cav = (ids: string[]) => string[] | undefined;
 
-function bottleneckRules(s: SimulationResult, p: PacingView, scope: string, names: Names, m: Msgs, cav: Cav, out: Finding[]) {
-  const T = THRESHOLDS;
+function bottleneckRules(s: SimulationResult, p: PacingView, scope: string, names: Names, m: Msgs, cav: Cav, T: Thresholds, out: Finding[]) {
   const mc = s.mode === "monte-carlo";
 
   if (s.stuck) {
@@ -631,8 +809,7 @@ function economy(s: SimulationResult): EconomyRow[] {
   });
 }
 
-function economyRules(s: SimulationResult, rows: EconomyRow[], p: PacingView, scope: string, names: Names, m: Msgs, cav: Cav, out: Finding[]) {
-  const T = THRESHOLDS;
+function economyRules(s: SimulationResult, rows: EconomyRow[], p: PacingView, scope: string, names: Names, m: Msgs, cav: Cav, T: Thresholds, out: Finding[]) {
   const kinds = new Map(s.resources.map((r) => [r.id, r.kind] as const));
   const wasted = new Set(s.waste.map((w) => w.resource));
   const limiting = new Set(p.stalls.flatMap((st) => st.limits.map((l) => l.resource)));
@@ -778,8 +955,7 @@ function changed(d: Delta): boolean {
   return d.delta !== null ? d.delta !== 0 : d.baseline !== d.scenario;
 }
 
-function scenarioRules(r: CompareReport, views: ScenarioView[], names: Names, m: Msgs, lang: InsightLang, cav: Cav, out: Finding[]) {
-  const T = THRESHOLDS;
+function scenarioRules(r: CompareReport, views: ScenarioView[], names: Names, m: Msgs, lang: InsightLang, cav: Cav, T: Thresholds, out: Finding[]) {
   for (const v of views) {
     const scope = `scenario:${v.id}`;
     const sc = r.scenarios.find((x) => x.id === v.id)!;

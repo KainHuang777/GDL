@@ -74,6 +74,30 @@ export default defineAdapter({
 6. **不寫入。** Adapter 應為唯讀；GDL 不會修改原始資料。
 7. **版本化。** 資料格式變更時遞增 adapter `version`；它會寫入每份報告。
 
+## 4b. 自訂分析規則與門檻（選用）
+
+Adapter 可匯出 `insightRules`，在內建規則之外追加專案專屬的 findings：
+
+```ts
+import { defineAdapter } from "../../../src/adapter/api.js";
+import type { InsightRule } from "../../../src/insights/insights.js";
+
+const rules: InsightRule[] = [{
+  id: "energy-cap",
+  evaluate(ctx) {
+    const sim = ctx.sim; // 主要模擬結果（可能為 undefined，例如 validate 報告）
+    if (!sim || sim.completionRate >= 0.5) return [];
+    return [{ id: "low-completion", severity: "warning", category: "bottleneck", scope: "", title: "完成率偏低", detail: `${sim.completionRate}` }];
+  },
+}];
+export default defineAdapter({ id: "my-game", version: "1.0.0", insightRules: rules, load: (ctx) => ctx.readJson("model.json") });
+```
+
+- `evaluate(ctx)` 必須是純函式；`ctx` 含 `report`、`lang`、`thresholds`、`sim`、`pacing`、`economy`、已產生的 `findings`。
+- 回傳的 finding 會被驗證（severity / category / title / detail 必填），並自動標上 `rule`；`scope` 留空字串時補為預設 scope。
+- 規則拋錯不會中斷分析，會轉成一則 `rule-error` warning。
+- 規則只在 `inspect` / `report` / `index` / 產生報告時載入（解析 adapter 但不呼叫 `load`），需能在無資料的情況下 import。
+- 內建規則門檻可在 `.gdl/config.json` 覆寫：`{ "insights": { "thresholds": { "stallShare": 0.1 } } }`；CLI `--threshold key=value` 優先於 config。
 ## 5. 參考實作
 
 - `examples/dao2-mock/.gdl/adapter.ts` — 巢狀 JSON；境界 = 進度節點（經驗為檢查、靈石為消耗）、體力回復、獨立機率掉落。

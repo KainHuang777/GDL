@@ -15,7 +15,7 @@
 
 非目標（v0.1 不做）：
 
-- 不做跨報告歷史趨勢 / 多份報告 diff（保留於 §8 後續）。
+- v0.1 不做跨報告趨勢；v0.2 起以 §8.3 提供。
 - 不需伺服器、不引入前端框架或圖表套件；不連網。
 - 不做任何 LLM 摘要。所有「發現」皆為**確定性規則**，同一份報告永遠得到同一組結果。
 - 不修改既有報告 schema（`reportVersion 0.1` 不變）；分析層只讀取報告。
@@ -49,6 +49,9 @@
 |---|---|
 | `gdl inspect <report.json> [--focus bottleneck,economy,scenario] [--format text\|json]` | 終端閱讀分析：依嚴重度列出發現，附節奏、經濟、情境摘要表 |
 | `gdl report <report.json> [--out dashboard.html]` | 由既有報告產生靜態 HTML（預設輸出到同名 `.html`） |
+| `gdl report a.json b.json ...` / `gdl inspect a.json b.json ...` | 多份報告趨勢（§8.3） |
+| `gdl index [project\|dir] [--out file]` | 報告索引頁（§8.4）；`--save` 會自動更新 |
+| `--threshold key=value`（可重複） | 覆寫分析門檻（§8.1） |
 | `simulate/analyze/compare ... --html <file>` | 執行後直接輸出 dashboard |
 | `simulate/analyze/compare/validate ... --save` | 將 JSON + HTML 存到專案 `outputDir`（`.gdl/config.json`，預設 `<project>/.gdl/reports/`），檔名 `<generatedAt>-<kind>.{json,html}`；存檔路徑印在 stderr，不污染 stdout |
 | `--html <file>` / `--save` / `gdl report` ... `--lang en\|zh-TW` | dashboard 語言（預設 `en`；`zh-TW` 輸出繁體中文介面並設 `<html lang="zh-Hant">`）。介面字串與 insights 標題/說明會本地化；若模型有提供資源/節點/動作的 `name`，顯示時優先使用（DAO 資料即為中文名）。ID、驗證訊息、情境描述等資料內容維持原文 |
@@ -88,7 +91,7 @@ interface Insights {
 
 ## 5. 分析規則（v0.1）
 
-門檻集中在 `THRESHOLDS`（`src/insights/insights.ts`），以下為初始值。
+門檻集中在 `THRESHOLDS`（`src/insights/insights.ts`），以下為預設值；可覆寫（見 §8.1），也可由 adapter 追加規則。
 
 ### 5.1 瓶頸 / 卡關（bottleneck）
 
@@ -144,6 +147,7 @@ interface Insights {
 ├ ① Findings      依嚴重度排序的卡片（紅 critical / 橘 warning / 灰 info），標示 category
 ├ ② 節奏 Pacing   [SVG] 每節點 p10–p90 區間條 + median 點 + 到達率；[SVG] 各段中位時間長條（最慢段高亮）
 │                 [SVG] 結束原因 100% 堆疊條；停滯點與阻擋原因表
+│                 （v0.2）Distributions：各節點到達時間直方圖（需 `--keep-runs`）；Timeline：節點 / 等待 / action 時間軸（需 `--trace`）
 ├ ③ 經濟 Economy  資源總表（產出/消耗/期末/淨速率/溢出）；每資源來源與去向 100% 堆疊條 + 圖例
 │                 Action 使用次數長條
 ├ ④ 情境 Scenario（compare）每情境：套用變更清單、完成率、[SVG] 節點中位時間 baseline vs scenario 啞鈴圖、
@@ -164,9 +168,30 @@ interface Insights {
 5. 相同報告 → 相同 insights（純函式，測試涵蓋）。
 6. `inspect` / `report` 對非報告檔回傳 exit 2。
 
-## 8. 後續（v0.2+ 候選）
+## 8. v0.2 已實作
 
-- 多份報告比較 / 趨勢（以 `modelSha256` + 參數分組），`gdl report a.json b.json`。
-- `--keep-runs` 時的分布直方圖、trace 時間軸。
-- 規則門檻可由 `.gdl/config.json` 覆寫；專案自訂規則（adapter 提供）。
-- 報告索引頁（`outputDir/index.html`）。
+### 8.1 門檻覆寫與自訂規則
+
+- `THRESHOLDS` 可由 `.gdl/config.json` 的 `insights.thresholds`（部分覆寫）或 CLI `--threshold key=value`（可重複，優先於 config）覆寫。未知 key、非有限數、負值皆為錯誤（config → 載入錯誤；CLI → exit 2）。實際套用的覆寫記錄在 `Insights.thresholdOverrides`。
+- Adapter 可匯出 `insightRules: InsightRule[]`（`{ id, evaluate(ctx) }`）。`evaluate` 為純函式，回傳 `Finding[]`；`ctx` 提供 `report`、`sim`、`pacing`、`economy`、`thresholds`、已產生的 `findings`。結果會標上 `rule`（規則 id），缺省 `scope` 補為 `simulation` / 報告 scope。規則拋錯 → 一則 warning `rule-error`，不中斷。
+- `inspect` / `report` / `index` 讀既有報告時，由 `provenance.project.root` 找回專案設定與規則（僅解析 adapter，不執行 `load`）；內建 `builtin:json-model` 專案沒有自訂規則。
+
+### 8.2 直方圖與 trace 時間軸
+
+- `--keep-runs`：`Insights.histograms`（各節點到達時間 20 bins，附 median 與「未到達」數）→ dashboard「Distributions」區。
+- `--trace`：`Insights.timeline`（首次 run 的節點到達、等待區間、前 5 種 action 的 48 桶用量）→ dashboard「Timeline」區。兩者缺資料時不輸出，不影響其他區塊。
+
+### 8.3 多份報告趨勢
+
+- `gdl report a.json b.json ...`（2 份以上）→ 單檔趨勢 HTML（預設 `gdl-trend.html`，`--out` 指定）；`gdl inspect a.json b.json ...` → 文字或 `--format json`。
+- 以 `project | policy | mode | maxMinutes` 分組，依 `generatedAt` 排序；`modelSha256` 與前一份不同時標示 `modelChanged`。輸出各組的 run 長度、完成率、節點到達（p10–p90）折線與新增 / 消失的 findings。validate 報告或沒有模擬結果者列入 `skipped`。`--focus` 不適用。
+
+### 8.4 報告索引頁
+
+- `gdl index [project|reports-dir] [--out file]`：掃描 `outputDir`（專案）或指定資料夾內所有 `*.json` 報告，寫出 `index.html`（最新在前：類型、策略、完成率、中位時間、findings 計數、連到同名 `.html`）。無法解析的 JSON 列在 skipped。
+- `--save` 存檔後自動更新 `<outputDir>/index.html`。
+
+## 9. 後續候選
+
+- 趨勢圖的 findings 歷史時間線、跨專案彙整。
+- 自訂規則的沙箱 / 宣告式規則格式。

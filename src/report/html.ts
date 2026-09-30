@@ -1,7 +1,7 @@
 import type { AnyReport, CompareReport } from "../index.js";
 import type { SimulationResult } from "../core/runner.js";
 import type { ValidationIssue } from "../schema/validate.js";
-import { fmtDeltaMin, type EconomyRow, type Finding, type FlowShare, type Insights, type PacingView, type ScenarioView } from "../insights/insights.js";
+import { fmtDeltaMin, type EconomyRow, type Finding, type FlowShare, type Histogram, type Insights, type TimelineView, type PacingView, type ScenarioView } from "../insights/insights.js";
 import { fmtMin, num, pct, signedPct } from "./units.js";
 
 /**
@@ -17,6 +17,17 @@ interface U {
   navFindings: string;
   navPacing: string;
   navEconomy: string;
+  navDist: string;
+  navTimeline: string;
+  distH: string;
+  distHint: string;
+  distNever: (n: string) => string;
+  distTitle: (lo: string, hi: string, n: string) => string;
+  timelineH: string;
+  timelineHint: string;
+  timelineNodes: string;
+  timelineWaiting: (share: string) => string;
+  timelineActions: string;
   navScenarios: string;
   navValidation: string;
   badgeValid: string;
@@ -113,6 +124,17 @@ const EN: U = {
   navFindings: "Findings",
   navPacing: "Pacing",
   navEconomy: "Economy",
+  navDist: "Distributions",
+  navTimeline: "Timeline",
+  distH: "Arrival-time distribution",
+  distHint: "histogram of every kept run (--keep-runs); dashed line = median",
+  distNever: (n) => `${n} run(s) never reached it`,
+  distTitle: (lo, hi, n) => `${lo} – ${hi}: ${n} run(s)`,
+  timelineH: "Run timeline",
+  timelineHint: "first run only (--trace)",
+  timelineNodes: "Nodes reached",
+  timelineWaiting: (share) => `Waiting ${share} of the run (shaded)`,
+  timelineActions: "Actions per time bucket",
   navScenarios: "Scenarios",
   navValidation: "Validation",
   badgeValid: "valid",
@@ -209,6 +231,17 @@ const ZH: U = {
   navFindings: "發現",
   navPacing: "進度與瓶頸",
   navEconomy: "資源經濟",
+  navDist: "分佈",
+  navTimeline: "時間軸",
+  distH: "到達時間分佈",
+  distHint: "所有保留的執行（--keep-runs）之直方圖；虛線 = 中位數",
+  distNever: (n) => `${n} 次執行未到達`,
+  distTitle: (lo, hi, n) => `${lo} – ${hi}：${n} 次執行`,
+  timelineH: "單次執行時間軸",
+  timelineHint: "僅第一次執行（--trace）",
+  timelineNodes: "到達的節點",
+  timelineWaiting: (share) => `等待佔整體 ${share}（陰影）`,
+  timelineActions: "各時段的行動次數",
   navScenarios: "情境比較",
   navValidation: "驗證",
   badgeValid: "有效",
@@ -312,6 +345,14 @@ export function renderHtml(report: AnyReport, ins: Insights, opts?: { lang?: Htm
     nav.push(["pacing", t.navPacing]);
     sections.push(pacingSection(t, ins.pacing, sim));
   }
+  if (ins.histograms?.length) {
+    nav.push(["distributions", t.navDist]);
+    sections.push(distSection(t, ins.histograms));
+  }
+  if (ins.timeline) {
+    nav.push(["timeline", t.navTimeline]);
+    sections.push(timelineSection(t, ins.timeline));
+  }
   if (ins.waste?.length) {
     nav.push(["policy", t.navPolicy]);
     sections.push(policySection(t, ins.waste));
@@ -406,6 +447,63 @@ function pacingSection(t: U, p: PacingView, s: SimulationResult): string {
   return parts.join("");
 }
 
+function distSection(t: U, hs: Histogram[]): string {
+  const cells = hs.map((h) => `<div class="hist"><h4>${esc(h.id)}${h.missing ? ` <small class="warn">${esc(t.distNever(String(h.missing)))}</small>` : ""}</h4>${histChart(t, h)}</div>`);
+  return `<section id="distributions"><h2>${esc(t.distH)} <small>${esc(t.distHint)}</small></h2><div class="flows">${cells.join("")}</div></section>`;
+}
+
+function histChart(t: U, h: Histogram): string {
+  const w = 300;
+  const ht = 70;
+  const top = Math.max(...h.bins, 1);
+  const bw = w / h.bins.length;
+  const span = h.max - h.min;
+  const bars = h.bins.map((c, i) => {
+    const lo = h.bins.length === 1 ? h.min : h.min + (span * i) / h.bins.length;
+    const hi = h.bins.length === 1 ? h.max : h.min + (span * (i + 1)) / h.bins.length;
+    const bh = c > 0 ? Math.max(1, (c / top) * ht) : 0;
+    return `<rect x="${(i * bw + 0.5).toFixed(2)}" y="${(ht - bh).toFixed(2)}" width="${Math.max(1, bw - 1).toFixed(2)}" height="${bh.toFixed(2)}" class="bar"><title>${esc(t.distTitle(fmtMin(lo), fmtMin(hi), String(c)))}</title></rect>`;
+  });
+  const mx = span > 0 ? ((h.median - h.min) / span) * w : w / 2;
+  const med = `<line x1="${mx.toFixed(2)}" x2="${mx.toFixed(2)}" y1="0" y2="${ht}" class="med"/>`;
+  const axis = `<text x="0" y="${ht + 14}" class="muted">${fmtMin(h.min)}</text><text x="${w}" y="${ht + 14}" text-anchor="end" class="muted">${fmtMin(h.max)}</text>`;
+  return svg(w, ht + 20, bars.join("") + med + axis);
+}
+
+function timelineSection(t: U, tl: TimelineView): string {
+  const w = CHART_W;
+  const plotX = 10;
+  const plotW = w - 2 * plotX;
+  const x = (m: number) => plotX + (m / tl.horizon) * plotW;
+  const nodeRow = 22;
+  const chartH = 90;
+  const totalH = nodeRow + 8 + chartH + 24;
+  const parts: string[] = [];
+  for (const s of tl.waits) parts.push(`<rect x="${x(s.start).toFixed(2)}" y="0" width="${Math.max(0.5, x(s.end) - x(s.start)).toFixed(2)}" height="${totalH - 20}" class="wait"/>`);
+  tl.nodes.forEach((n, i) => {
+    const cy = 10 + (i % 2) * 10;
+    parts.push(`<line x1="${x(n.t).toFixed(2)}" x2="${x(n.t).toFixed(2)}" y1="${cy}" y2="${nodeRow + 8 + chartH}" class="grid"/><circle cx="${x(n.t).toFixed(2)}" cy="${cy}" r="3.5" fill="#4e79a7"><title>${esc(n.id)} · ${fmtMin(n.t)}</title></circle>`);
+  });
+  const buckets = tl.series[0]?.counts.length ?? 0;
+  const bw = plotW / Math.max(1, buckets);
+  const stackTop = Math.max(1, ...Array.from({ length: buckets }, (_, i) => tl.series.reduce((a, s) => a + s.counts[i]!, 0)));
+  const base = nodeRow + 8 + chartH;
+  const acc = new Array<number>(buckets).fill(0);
+  tl.series.forEach((s, si) => {
+    const c = PALETTE[si % PALETTE.length]!;
+    s.counts.forEach((v, i) => {
+      if (!v) return;
+      const hh = (v / stackTop) * chartH;
+      const y = base - ((acc[i]! + v) / stackTop) * chartH;
+      acc[i]! += v;
+      parts.push(`<rect x="${(plotX + i * bw).toFixed(2)}" y="${y.toFixed(2)}" width="${Math.max(1, bw - 0.5).toFixed(2)}" height="${hh.toFixed(2)}" fill="${c}"><title>${esc(s.id)}: ${v}</title></rect>`);
+    });
+  });
+  parts.push(`<text x="${plotX}" y="${totalH - 4}" class="muted">0</text><text x="${plotX + plotW}" y="${totalH - 4}" text-anchor="end" class="muted">${fmtMin(tl.horizon)}</text>`);
+  const legend = tl.series.map((s, i) => `<span class="lg"><i style="background:${PALETTE[i % PALETTE.length]}"></i>${esc(s.id)} ${s.total}</span>`).join("");
+  return `<section id="timeline"><h2>${esc(t.timelineH)} <small>${esc(t.timelineHint)}</small></h2><p class="muted">${esc(t.timelineNodes)} · ${esc(t.timelineActions)} · ${esc(t.timelineWaiting(pct(tl.waitingShare)))}</p>${svg(w, totalH, parts.join(""))}<div class="legend">${legend}</div></section>`;
+}
+
 function policySection(t: U, waste: NonNullable<Insights["waste"]>): string {
   const rows = waste.map((w) => `<tr><td>${esc(w.actionName ?? w.action)}</td><td>${esc(w.resourceName ?? w.resource)}</td><td class="n">${num(w.made)}</td><td class="n ${w.unusedShare >= 0.2 ? "warn" : ""}">${num(w.unused)} (${pct(w.unusedShare)})</td><td>${esc(w.wastedCosts.filter((c) => c.amount > 0).map((c) => `${c.name ?? c.resource} ${num(c.amount)} (${pct(c.shareOfConsumed)})`).join(", "))}</td></tr>`).join("");
   return `<section id="policy"><h2>${esc(t.policyH)} <small>${esc(t.policyHint)}</small></h2><table><thead><tr><th>${t.thAction}</th><th>${t.thResource}</th><th>${t.thMade}</th><th>${t.thUnused}</th><th>${t.thWasted}</th></tr></thead><tbody>${rows}</tbody></table></section>`;
@@ -477,10 +575,10 @@ function issues(t: U, list: ValidationIssue[]): string {
 
 // ---------------------------------------------------------------- charts (inline SVG)
 
-const PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"];
+export const PALETTE = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"];
 const STOP_COLORS: Record<string, string> = { completed: "#59a14f", time_limit: "#4e79a7", action_limit: "#edc948", stuck: "#e15759" };
 const LABEL_W = 170;
-const CHART_W = 640;
+export const CHART_W = 640;
 
 function rangeChart(t: U, p: PacingView): string {
   const rowH = 24;
@@ -555,17 +653,17 @@ function dumbbell(t: U, a: SimulationResult, b: SimulationResult): string {
   return svg(CHART_W, nodes.length * rowH + 28, body.join("") + legend);
 }
 
-function svg(w: number, h: number, body: string): string {
+export function svg(w: number, h: number, body: string): string {
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
 // ---------------------------------------------------------------- helpers
 
-function badge(kind: string, text: string): string {
+export function badge(kind: string, text: string): string {
   return `<span class="badge ${kind}">${esc(text)}</span>`;
 }
 
-function dt(k: string, v: string, title?: string): string {
+export function dt(k: string, v: string, title?: string): string {
   return `<div><dt>${esc(k)}</dt><dd${title ? ` title="${esc(title)}"` : ""}>${esc(v)}</dd></div>`;
 }
 
@@ -574,11 +672,11 @@ export function esc(s: string): string {
 }
 
 /** JSON safe to place inside a <script> element. */
-function embedJson(v: unknown): string {
+export function embedJson(v: unknown): string {
   return JSON.stringify(v).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
 }
 
-const CSS = `
+export const CSS = `
 :root{--fg:#1f2328;--muted:#6e7781;--line:#d0d7de;--bg:#fff;--soft:#f6f8fa;--crit:#cf222e;--warn:#bc4c00;--info:#57606a;--good:#1a7f37;--accent:#4e79a7}
 *{box-sizing:border-box}body{margin:0;font:14px/1.5 -apple-system,"Segoe UI","Noto Sans TC","Microsoft JhengHei",Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg)}
 header{padding:20px 32px 0;border-bottom:1px solid var(--line);background:var(--soft)}
@@ -599,7 +697,7 @@ table{border-collapse:collapse;margin:6px 0 10px;font-size:13px}th,td{border:1px
 td.n{text-align:right;font-variant-numeric:tabular-nums}.bad{color:var(--crit)}.good{color:var(--good)}.warn{color:var(--warn)}.muted{color:var(--muted);fill:var(--muted)}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:16px}
 .chart{max-width:100%;height:auto;font-size:12px}.chart text{fill:var(--fg)}.chart text.muted{fill:var(--muted)}.chart .grid{stroke:var(--line);stroke-dasharray:2 3}
-.bar{fill:var(--accent)}.bar.hot{fill:var(--crit)}.db{stroke:#999;stroke-width:3}.db.good{stroke:var(--good)}.db.bad{stroke:var(--crit)}
+.chart .med{stroke:var(--crit);stroke-dasharray:3 3}.chart .wait{fill:var(--line);opacity:.45}.hist h4 small{font-weight:400}.bar{fill:var(--accent)}.bar.hot{fill:var(--crit)}.db{stroke:#999;stroke-width:3}.db.good{stroke:var(--good)}.db.bad{stroke:var(--crit)}
 .flows{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:8px 24px}.flow h4{margin:8px 0 2px}.flow-row{display:flex;gap:8px;align-items:flex-start;margin:2px 0}.lbl{width:28px;color:var(--muted);font-size:12px;padding-top:1px}
 .stack svg{display:block;border-radius:3px}.legend{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--muted);margin-top:2px}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .scenario{border:1px solid var(--line);border-radius:6px;padding:4px 16px 8px;margin:10px 0}details summary{cursor:pointer;color:var(--muted)}code{font-size:12px}

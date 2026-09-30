@@ -37,6 +37,11 @@ npm run gdl -- compare --project examples/dao2-mock \
   --scenario examples/dao2-mock/scenarios/realm-stone-plus-50.json --html dao2.html --save
 # dashboard 語言：--lang zh-TW 產生繁體中文版（預設 en）
 npm run gdl -- report report.json --lang zh-TW --out dashboard-zh.html
+# 多份報告趨勢（依專案/策略/模式/時長分組）與報告索引頁
+npm run gdl -- report old.json new.json --out trend.html
+npm run gdl -- index examples/dao2-mock
+# 覆寫分析門檻（或寫在 .gdl/config.json 的 insights.thresholds）
+npm run gdl -- inspect report.json --threshold stallShare=0.1
 ```
 
 設計說明見 [docs/dashboard-design.md](docs/dashboard-design.md)。
@@ -52,10 +57,13 @@ npm run gdl -- report report.json --lang zh-TW --out dashboard-zh.html
 | `simulate` | 多次模擬並彙總分布 | `--mode monte-carlo --runs 1000 --seed 1` |
 | `compare` | baseline vs 一或多個 scenario | 同 simulate |
 | `inspect` | 讀取已存 JSON 報告，輸出分析 findings | `--format text` |
-| `report` | 由已存 JSON 報告產生單檔 HTML dashboard | `<report>.html` |
+| `report` | 由已存 JSON 報告產生單檔 HTML dashboard；給 2 份以上則產生趨勢頁 | `<report>.html` / `gdl-trend.html` |
+| `index` | 為報告資料夾（專案的 outputDir）產生 `index.html` 索引；`--save` 自動更新 | `<outputDir>/index.html` |
 
 常用選項：`--project <dir|file>`、`--policy <id>`、`--minutes N` / `--hours N`（預設 1440 分鐘）、
-`--max-actions N`、`--no-stop-on-complete`、`--keep-runs`、`--trace`、`--format text|json`、`--out <file>`、`--html <file>`、`--save`、`--lang en|zh-TW`、`--focus bottleneck,economy,scenario,data`。
+`--max-actions N`、`--no-stop-on-complete`、`--keep-runs`、`--trace`、`--format text|json`、`--out <file>`、`--html <file>`、`--save`、`--lang en|zh-TW`、`--focus bottleneck,economy,scenario,data`、`--threshold key=value`（可重複）。
+
+`--keep-runs` 會在 dashboard 加入節點到達時間直方圖；`--trace` 加入首次 run 的時間軸。
 
 ### 結束碼
 

@@ -6,6 +6,7 @@ import { ADAPTER_API_VERSION } from "../version.js";
 import { AdapterError, type AdapterContext, type GdlAdapter } from "./api.js";
 import { UsageError } from "../core/policy.js";
 import { isObj } from "../schema/validate.js";
+import { resolveThresholds, type InsightRule, type Thresholds } from "../insights/insights.js";
 
 export interface ProjectConfig {
   projectId: string;
@@ -14,6 +15,7 @@ export interface ProjectConfig {
   dataRoots?: string[];
   adapterOptions?: Record<string, unknown>;
   outputDir?: string;
+  insights?: { thresholds?: Partial<Thresholds> };
 }
 
 export interface SourceFileRecord {
@@ -92,7 +94,54 @@ function parseConfig(raw: unknown): ProjectConfig {
   if (typeof raw.adapter !== "string" || !raw.adapter) throw new Error('adapter is required (path or "builtin:json-model")');
   if (raw.dataRoots !== undefined && !(Array.isArray(raw.dataRoots) && raw.dataRoots.every((d) => typeof d === "string"))) throw new Error("dataRoots must be an array of strings");
   if (raw.adapterOptions !== undefined && !isObj(raw.adapterOptions)) throw new Error("adapterOptions must be an object");
+  if (raw.insights !== undefined) {
+    if (!isObj(raw.insights)) throw new Error("insights must be an object");
+    if (raw.insights.thresholds !== undefined) {
+      if (!isObj(raw.insights.thresholds)) throw new Error("insights.thresholds must be an object");
+      try {
+        resolveThresholds(raw.insights.thresholds as Partial<Thresholds>);
+      } catch (e) {
+        throw new Error(`insights.thresholds: ${(e as Error).message}`);
+      }
+    }
+  }
   return raw as unknown as ProjectConfig;
+}
+
+export interface InsightSettings {
+  thresholds: Partial<Thresholds>;
+  rules: InsightRule[];
+}
+
+/**
+ * Insight customisation of a project directory: `insights.thresholds` from .gdl/config.json and
+ * `insightRules` exported by its adapter. Returns empty settings when `root` has no config
+ * (e.g. a report produced from a bare model file, or a report moved away from its project).
+ * Never calls adapter.load().
+ */
+export async function loadInsightSettings(root: string): Promise<InsightSettings> {
+  const none: InsightSettings = { thresholds: {}, rules: [] };
+  const cfgPath = path.join(root, CONFIG_REL);
+  const cfgText = await fs.readFile(cfgPath, "utf8").catch(() => null);
+  if (cfgText === null) return none;
+  let cfg: ProjectConfig;
+  try {
+    cfg = parseConfig(JSON.parse(cfgText));
+  } catch (e) {
+    throw new UsageError(`${cfgPath}: ${(e as Error).message}`);
+  }
+  const rules: InsightRule[] = [];
+  if (cfg.adapter !== "builtin:json-model") {
+    const adapter = await resolveAdapter(cfg.adapter, path.join(root, ".gdl"));
+    const seen = new Set<string>();
+    for (const r of adapter.insightRules ?? []) {
+      if (!r || typeof r.id !== "string" || !r.id || typeof r.evaluate !== "function") throw new AdapterError(`Adapter "${adapter.id}": insightRules entries need { id, evaluate(ctx) }.`, adapter.id);
+      if (seen.has(r.id)) throw new AdapterError(`Adapter "${adapter.id}": duplicate insight rule id "${r.id}".`, adapter.id);
+      seen.add(r.id);
+      rules.push(r);
+    }
+  }
+  return { thresholds: cfg.insights?.thresholds ?? {}, rules };
 }
 
 const BUILTIN_JSON: GdlAdapter = {

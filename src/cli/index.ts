@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
-import { analyzeProject, compareProject, simulateProject, validateProject } from "../index.js";
+import { analyzeProject, compareProject, simulateProject, validateProject, type AnyReport } from "../index.js";
 import { AdapterError } from "../adapter/api.js";
 import { UsageError } from "../core/policy.js";
 import { parseScenario, type Scenario } from "../core/scenario.js";
@@ -10,9 +10,12 @@ import type { SimLimits, SimMode } from "../core/simulate.js";
 import type { SimulationOptions } from "../core/runner.js";
 import { GDL_VERSION } from "../version.js";
 import { formatText } from "./format.js";
-import { buildInsights, CATEGORIES, type Category } from "../insights/insights.js";
+import { buildInsights, CATEGORIES, resolveThresholds, type Category, type Thresholds } from "../insights/insights.js";
+import { loadInsightSettings } from "../adapter/loader.js";
 import { formatInsights } from "../insights/format.js";
-import { renderHtml, type HtmlLang } from "../report/html.js";
+import { renderHtml } from "../report/html.js";
+import { buildReportIndex, INDEX_FILE, renderIndexHtml } from "../report/index-page.js";
+import { buildTrend, formatTrend, renderTrendHtml } from "../report/trend.js";
 import { readReport, reportStem, resolveOutputDir, writeFileEnsured } from "../report/io.js";
 
 export const EXIT = { OK: 0, DATA_INVALID: 1, ERROR: 2 } as const;
@@ -26,6 +29,8 @@ Usage:
   gdl compare  <project|model.json> --scenario <file.json> [--scenario ...] [sim options]
   gdl inspect  <report.json> [--focus bottleneck,economy,policy,scenario] [--format text|json]
   gdl report   <report.json> [--out dashboard.html]
+  gdl index    [project|reports-dir] [--out index.html]   list saved reports (also refreshed by --save)
+  gdl inspect|report <a.json> <b.json> ...   compare/trend several saved reports (report: --out default gdl-trend.html)
 
 <project> is a directory containing .gdl/config.json; alternatively pass a Game Model JSON file.
 (--project <path> is accepted instead of the positional argument.)
@@ -51,6 +56,7 @@ Output:
   --html <file>        also write a static HTML dashboard to <file>
   --save               save JSON + HTML dashboard to the project outputDir (default <project>/.gdl/reports)
   --lang <en|zh-TW>    dashboard language (default en)
+  --threshold k=v      override an insight threshold (repeatable; also .gdl/config.json insights.thresholds)
 
 Reading reports:
   inspect              findings (bottlenecks, economy, scenarios) + pacing/economy tables in the terminal
@@ -94,9 +100,11 @@ export async function main(argv: string[]): Promise<number> {
         save: { type: "boolean" },
         focus: { type: "string" },
         lang: { type: "string" },
+        threshold: { type: "string", multiple: true },
       },
     });
     if (command === "inspect" || command === "report") return await readCommand(command, positionals, values);
+    if (command === "index") return await indexCommand(positionals, values);
     const target = values.project ?? positionals[0];
     if (!target) throw new UsageError(`Missing project path. Run "gdl help".`);
     if (positionals.length > (values.project ? 0 : 1)) throw new UsageError(`Unexpected arguments: ${positionals.slice(values.project ? 0 : 1).join(" ")}`);
@@ -157,14 +165,15 @@ export async function main(argv: string[]): Promise<number> {
     const json = JSON.stringify(report, null, 2);
     const htmlLang = resolveHtmlLang(values.lang);
     if (values.out) await writeFileEnsured(values.out, json + "\n");
-    const insights = buildInsights(report, htmlLang);
+    const insights = await insightsFor(report, htmlLang, values.threshold);
     if (values.html) await writeFileEnsured(values.html, renderHtml(report, insights, { lang: htmlLang }));
     if (values.save) {
       const dir = await resolveOutputDir(report.provenance.project.root);
       const stem = path.join(dir, reportStem(report));
       await writeFileEnsured(stem + ".json", json + "\n");
       await writeFileEnsured(stem + ".html", renderHtml(report, insights, { lang: htmlLang }));
-      process.stderr.write(`gdl: saved ${stem}.json and .html\n`);
+      await writeIndex(dir, htmlLang, values.threshold);
+      process.stderr.write(`gdl: saved ${stem}.json and .html (index: ${path.join(dir, INDEX_FILE)})\n`);
     }
     process.stdout.write(format === "json" ? json + "\n" : formatText(report, insights, htmlLang));
     const scenarioInvalid = report.kind === "compare" && report.scenarios.some((s) => !s.validation.ok);
@@ -177,13 +186,13 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-async function readCommand(command: "inspect" | "report", positionals: string[], values: { format?: string; out?: string; focus?: string; lang?: string; [k: string]: unknown }): Promise<number> {
+async function readCommand(command: "inspect" | "report", positionals: string[], values: { format?: string; out?: string; focus?: string; lang?: string; threshold?: string[]; [k: string]: unknown }): Promise<number> {
   const file = positionals[0];
-  if (!file) throw new UsageError(`${command} requires a report file: gdl ${command} <report.json>`);
-  if (positionals.length > 1) throw new UsageError(`Unexpected arguments: ${positionals.slice(1).join(" ")}`);
+  if (!file) throw new UsageError(`${command} requires a report file: gdl ${command} <report.json> [more.json ...]`);
+  if (positionals.length > 1) return await trendCommand(command, positionals, values);
 const report = await readReport(file);
     const lang = resolveHtmlLang(values.lang);
-    const insights = buildInsights(report, lang);
+    const insights = await insightsFor(report, lang, values.threshold as string[] | undefined);
     if (command === "report") {
       const out = values.out ?? file.replace(/\.json$/i, "") + ".html";
       const abs = await writeFileEnsured(out, renderHtml(report, insights, { lang }));
@@ -196,6 +205,67 @@ const report = await readReport(file);
   const bad = focus.filter((f) => !CATEGORIES.includes(f));
   if (bad.length) throw new UsageError(`--focus: unknown category ${bad.join(", ")} (use ${CATEGORIES.join(",")}).`);
   process.stdout.write(format === "json" ? JSON.stringify(insights, null, 2) + "\n" : formatInsights(report, insights, focus, lang));
+  return EXIT.OK;
+}
+
+/** Project config thresholds + adapter rules, then `--threshold key=value` overrides on top. */
+async function insightsFor(report: AnyReport, lang: "en" | "zh-TW", cli: string[] | undefined) {
+  const settings = await loadInsightSettings(report.provenance.project.root);
+  const thresholds: Partial<Thresholds> = { ...settings.thresholds };
+  for (const kv of cli ?? []) {
+    const i = kv.indexOf("=");
+    const key = i > 0 ? kv.slice(0, i).trim() : "";
+    const val = i > 0 ? Number(kv.slice(i + 1)) : NaN;
+    if (!key || !Number.isFinite(val)) throw new UsageError(`--threshold expects key=number (got "${kv}").`);
+    (thresholds as Record<string, number>)[key] = val;
+  }
+  try {
+    resolveThresholds(thresholds);
+  } catch (e) {
+    throw new UsageError(`--threshold: ${(e as Error).message}`);
+  }
+  return buildInsights(report, lang, { thresholds, rules: settings.rules });
+}
+
+/** Rebuild `<dir>/index.html` from the reports currently in `dir`. */
+async function writeIndex(dir: string, lang: "en" | "zh-TW", cli: string[] | undefined, out?: string): Promise<string> {
+  const index = await buildReportIndex(dir, (r) => insightsFor(r, lang, cli));
+  return writeFileEnsured(out ?? path.join(dir, INDEX_FILE), renderIndexHtml(index, { lang, gdlVersion: GDL_VERSION }));
+}
+
+/** `gdl index [project|reports-dir]`: write the report index page. */
+async function indexCommand(positionals: string[], values: { out?: string; lang?: string; threshold?: string[]; project?: string; [k: string]: unknown }): Promise<number> {
+  if (positionals.length > (values.project ? 0 : 1)) throw new UsageError(`Unexpected arguments: ${positionals.slice(values.project ? 0 : 1).join(" ")}`);
+  const target = path.resolve(values.project ?? positionals[0] ?? ".");
+  const stat = await fs.stat(target).catch(() => null);
+  if (!stat?.isDirectory()) throw new UsageError(`Not a directory: ${target}`);
+  const isProject = await fs.stat(path.join(target, ".gdl", "config.json")).then(() => true, () => false);
+  const dir = isProject ? await resolveOutputDir(target) : target;
+  const abs = await writeIndex(dir, resolveHtmlLang(values.lang), values.threshold, values.out);
+  process.stdout.write(`${abs}\n`);
+  return EXIT.OK;
+}
+
+/** `gdl report|inspect a.json b.json ...`: compare several saved reports over time. */
+async function trendCommand(command: "inspect" | "report", files: string[], values: { format?: string; out?: string; focus?: string; lang?: string; threshold?: string[]; [k: string]: unknown }): Promise<number> {
+  if (values.focus) throw new UsageError("--focus applies to a single report.");
+  const lang = resolveHtmlLang(values.lang);
+  const format = values.format ?? "text";
+  if (format !== "text" && format !== "json") throw new UsageError(`--format must be text or json.`);
+  const inputs = [];
+  for (const f of files) {
+    const report = await readReport(f);
+    inputs.push({ file: f, report, insights: await insightsFor(report, lang, values.threshold) });
+  }
+  const trend = buildTrend(inputs);
+  if (!trend.groups.length) throw new UsageError("None of the reports contains a simulation; nothing to compare.");
+  if (command === "report") {
+    const out = values.out ?? "gdl-trend.html";
+    const abs = await writeFileEnsured(out, renderTrendHtml(trend, { lang, gdlVersion: GDL_VERSION }));
+    process.stdout.write(`${abs}\n`);
+    return EXIT.OK;
+  }
+  process.stdout.write(format === "json" ? JSON.stringify(trend, null, 2) + "\n" : formatTrend(trend));
   return EXIT.OK;
 }
 
